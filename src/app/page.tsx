@@ -360,6 +360,19 @@ export default function HomePage() {
       <div className="mb-6 overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead>
+            {/* Group labels row */}
+            <tr className="bg-gray-50 text-[10px] text-gray-400 uppercase tracking-wider">
+              <th colSpan={6}></th>
+              <th colSpan={2} className="px-2 pt-1.5 pb-0 text-center text-blue-500 border-l-2 border-l-blue-200">
+                Cost + CPM
+              </th>
+              <th colSpan={2}></th>
+              <th colSpan={2} className="px-2 pt-1.5 pb-0 text-center text-purple-500 border-l-2 border-l-purple-200">
+                Reach + Freq
+              </th>
+              <th></th>
+            </tr>
+            {/* Column headers */}
             <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
               <th className="px-2 py-2 text-center w-8">#</th>
               <th className="px-2 py-2">Tactic Name</th>
@@ -367,11 +380,11 @@ export default function HomePage() {
               <th className="px-2 py-2">Audience</th>
               <th className="px-2 py-2">Audience Size</th>
               <th className="px-2 py-2">Channel</th>
-              <th className="px-2 py-2">Cost ($)</th>
+              <th className="px-2 py-2 border-l-2 border-l-blue-200">Cost ($)</th>
               <th className="px-2 py-2">CPM ($)</th>
               <th className="px-2 py-2">Gross Impr.</th>
               <th className="px-2 py-2">GRPs</th>
-              <th className="px-2 py-2">Reach %</th>
+              <th className="px-2 py-2 border-l-2 border-l-purple-200">Reach %</th>
               <th className="px-2 py-2">Frequency</th>
               <th className="px-2 py-2 w-8"></th>
             </tr>
