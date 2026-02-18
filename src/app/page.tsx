@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import Image from "next/image";
 import TacticFormRow, {
   type TacticFormData,
   emptyTacticForm,
@@ -62,9 +61,7 @@ type FieldErrors = Record<string, Record<string, string[]>>;
 
 export default function HomePage() {
   // Tactic form rows
-  const [tactics, setTactics] = useState<TacticFormData[]>(() =>
-    SEED_TACTICS.map(tacticFormFromInput)
-  );
+  const [tactics, setTactics] = useState<TacticFormData[]>([]);
 
   // Validation errors per row
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -313,13 +310,11 @@ export default function HomePage() {
     <div className="mx-auto max-w-[1400px] px-4 py-6">
       {/* Header */}
       <header className="mb-6 flex items-center gap-4">
-        <Image
-          src="/unlock-logo.svg"
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={`${process.env.NEXT_PUBLIC_BASE_PATH || ""}/unlock-logo.svg`}
           alt="Unlock Health"
-          width={160}
-          height={81}
           className="h-10 w-auto"
-          priority
         />
         <div>
           <h1 className="text-2xl font-bold text-unlock-black">
