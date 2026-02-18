@@ -314,10 +314,10 @@ export default function HomePage() {
       {/* Header */}
       <header className="mb-6 flex items-center gap-4">
         <Image
-          src="/unlock-logo.png"
+          src="/unlock-logo.svg"
           alt="Unlock Health"
           width={160}
-          height={48}
+          height={81}
           className="h-10 w-auto"
           priority
         />
