@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import Image from "next/image";
 import TacticFormRow, {
   type TacticFormData,
   emptyTacticForm,
@@ -311,39 +312,49 @@ export default function HomePage() {
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-6">
       {/* Header */}
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">
-          Reach &amp; Frequency Calculator
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Enter media tactics, calculate reach/frequency/GRPs, and combine across
-          tactics with deduplication.
-        </p>
+      <header className="mb-6 flex items-center gap-4">
+        <Image
+          src="/unlock-logo.png"
+          alt="Unlock Health"
+          width={160}
+          height={48}
+          className="h-10 w-auto"
+          priority
+        />
+        <div>
+          <h1 className="text-2xl font-bold text-unlock-black">
+            Reach &amp; Frequency Calculator
+          </h1>
+          <p className="mt-0.5 text-sm text-unlock-medium-gray">
+            Enter media tactics, calculate reach/frequency/GRPs, and combine across
+            tactics with deduplication.
+          </p>
+        </div>
       </header>
 
       {/* Toolbar */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <button
           onClick={handleAddRow}
-          className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+          className="rounded bg-unlock-red px-3 py-1.5 text-sm font-medium text-white hover:bg-unlock-barn-red transition-colors"
         >
           + Add Tactic
         </button>
         <button
           onClick={handleLoadSeed}
-          className="rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 transition-colors"
+          className="rounded bg-unlock-light-gray px-3 py-1.5 text-sm font-medium text-unlock-dark-gray hover:bg-unlock-medium-gray hover:text-white transition-colors"
         >
           Load Demo Data
         </button>
         <button
           onClick={handleExport}
-          className="rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 transition-colors"
+          className="rounded bg-unlock-light-gray px-3 py-1.5 text-sm font-medium text-unlock-dark-gray hover:bg-unlock-medium-gray hover:text-white transition-colors"
         >
           Export JSON
         </button>
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 transition-colors"
+          className="rounded bg-unlock-light-gray px-3 py-1.5 text-sm font-medium text-unlock-dark-gray hover:bg-unlock-medium-gray hover:text-white transition-colors"
         >
           Import JSON
         </button>
@@ -357,34 +368,34 @@ export default function HomePage() {
       </div>
 
       {/* Tactic Input Table */}
-      <div className="mb-6 overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="mb-6 overflow-x-auto rounded-lg border border-unlock-light-gray bg-white shadow-sm">
         <table className="w-full text-sm">
           <thead>
             {/* Group labels row */}
-            <tr className="bg-gray-50 text-[10px] text-gray-400 uppercase tracking-wider">
+            <tr className="bg-gray-50 text-[10px] text-unlock-medium-gray uppercase tracking-wider">
               <th colSpan={6}></th>
-              <th colSpan={2} className="px-2 pt-1.5 pb-0 text-center text-blue-500 border-l-2 border-l-blue-200">
+              <th colSpan={2} className="px-2 pt-1.5 pb-0 text-center text-unlock-ocean border-l-2 border-l-unlock-sky">
                 Cost + CPM
               </th>
               <th colSpan={2}></th>
-              <th colSpan={2} className="px-2 pt-1.5 pb-0 text-center text-purple-500 border-l-2 border-l-purple-200">
+              <th colSpan={2} className="px-2 pt-1.5 pb-0 text-center text-unlock-barn-red border-l-2 border-l-unlock-salmon">
                 Reach + Freq
               </th>
               <th></th>
             </tr>
             {/* Column headers */}
-            <tr className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
+            <tr className="border-b border-unlock-light-gray bg-gray-50 text-left text-xs uppercase tracking-wider text-unlock-medium-gray">
               <th className="px-2 py-2 text-center w-8">#</th>
               <th className="px-2 py-2">Tactic Name</th>
               <th className="px-2 py-2">Geo</th>
               <th className="px-2 py-2">Audience</th>
               <th className="px-2 py-2">Audience Size</th>
               <th className="px-2 py-2">Channel</th>
-              <th className="px-2 py-2 border-l-2 border-l-blue-200">Cost ($)</th>
+              <th className="px-2 py-2 border-l-2 border-l-unlock-sky">Cost ($)</th>
               <th className="px-2 py-2">CPM ($)</th>
               <th className="px-2 py-2">Gross Impr.</th>
               <th className="px-2 py-2">GRPs</th>
-              <th className="px-2 py-2 border-l-2 border-l-purple-200">Reach %</th>
+              <th className="px-2 py-2 border-l-2 border-l-unlock-salmon">Reach %</th>
               <th className="px-2 py-2">Frequency</th>
               <th className="px-2 py-2 w-8"></th>
             </tr>
@@ -402,7 +413,7 @@ export default function HomePage() {
             ))}
             {tactics.length === 0 && (
               <tr>
-                <td colSpan={13} className="px-4 py-8 text-center text-gray-400">
+                <td colSpan={13} className="px-4 py-8 text-center text-unlock-medium-gray">
                   No tactics added. Click &quot;+ Add Tactic&quot; or &quot;Load Demo Data&quot; to get started.
                 </td>
               </tr>
@@ -413,11 +424,11 @@ export default function HomePage() {
 
       {/* Plan Selection & Calculate */}
       {tactics.length > 0 && (
-        <div className="mb-6 rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-base font-semibold text-gray-800">
+        <div className="mb-6 rounded-lg border border-unlock-light-gray bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-base font-semibold text-unlock-black">
             Calculate Plan
           </h2>
-          <p className="mb-3 text-xs text-gray-500">
+          <p className="mb-3 text-xs text-unlock-medium-gray">
             Select 2+ tactics to combine reach (must share same geo and audience
             size). Single tactics are calculated individually.
           </p>
@@ -425,7 +436,7 @@ export default function HomePage() {
           <div className="mb-3 flex flex-wrap gap-2">
             <button
               onClick={handleSelectAll}
-              className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-600 hover:bg-gray-100"
+              className="rounded border border-unlock-light-gray px-2 py-1 text-xs text-unlock-dark-gray hover:bg-gray-100"
             >
               {selectedIds.size === tactics.length ? "Deselect All" : "Select All"}
             </button>
@@ -440,12 +451,12 @@ export default function HomePage() {
                   onClick={() => handleToggleSelect(t.id)}
                   className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                     isSelected
-                      ? "border-blue-500 bg-blue-100 text-blue-700"
-                      : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                      ? "border-unlock-ocean bg-unlock-ice text-unlock-ocean"
+                      : "border-unlock-light-gray bg-white text-unlock-dark-gray hover:bg-gray-50"
                   }`}
                 >
                   {t.tacticName || `Tactic ${tactics.indexOf(t) + 1}`}
-                  {isSelected && " ✓"}
+                  {isSelected && " \u2713"}
                 </button>
               );
             })}
@@ -453,7 +464,7 @@ export default function HomePage() {
 
           <button
             onClick={handleCalculate}
-            className="rounded bg-green-600 px-5 py-2 text-sm font-semibold text-white hover:bg-green-700 transition-colors"
+            className="rounded bg-unlock-ocean px-5 py-2 text-sm font-semibold text-white hover:brightness-110 transition-all"
           >
             Calculate
           </button>
@@ -463,7 +474,7 @@ export default function HomePage() {
       {/* Results */}
       {showResults && (
         <div className="space-y-4">
-          <h2 className="text-lg font-bold text-gray-900">Results</h2>
+          <h2 className="text-lg font-bold text-unlock-black">Results</h2>
 
           {/* Show Math toggle */}
           <ShowMathPanel />
@@ -477,7 +488,7 @@ export default function HomePage() {
 
           {/* Plan Error */}
           {planError && (
-            <div className="rounded-lg border border-red-300 bg-red-50 p-4 text-sm text-red-800">
+            <div className="rounded-lg border border-unlock-salmon bg-red-50 p-4 text-sm text-unlock-barn-red">
               <strong>Cannot combine tactics:</strong> {planError}
             </div>
           )}
@@ -496,7 +507,7 @@ export default function HomePage() {
       )}
 
       {/* Footer */}
-      <footer className="mt-12 border-t border-gray-200 pt-4 text-xs text-gray-400">
+      <footer className="mt-12 border-t border-unlock-light-gray pt-4 text-xs text-unlock-medium-gray">
         <p>
           Reach &amp; Frequency Calculator — Uses Poisson approximation for Effective 3+
           and sequential remainder method for combined reach. No proprietary reach

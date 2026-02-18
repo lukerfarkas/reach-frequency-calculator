@@ -6,10 +6,10 @@ export default function ShowMathPanel() {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white">
+    <div className="rounded-lg border border-unlock-light-gray bg-white">
       <button
         onClick={() => setOpen(!open)}
-        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+        className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-semibold text-unlock-dark-gray hover:bg-gray-50 transition-colors"
       >
         <span>Show Math &amp; Formulas</span>
         <svg
@@ -27,10 +27,10 @@ export default function ShowMathPanel() {
       </button>
 
       {open && (
-        <div className="border-t border-gray-200 px-4 py-4 text-sm text-gray-700 space-y-4">
+        <div className="border-t border-unlock-light-gray px-4 py-4 text-sm text-unlock-dark-gray space-y-4">
           <section>
-            <h4 className="font-semibold mb-1">Basic Conversions</h4>
-            <ul className="list-disc list-inside space-y-1 text-gray-600 font-mono text-xs">
+            <h4 className="font-semibold mb-1 text-unlock-black">Basic Conversions</h4>
+            <ul className="list-disc list-inside space-y-1 text-unlock-medium-gray font-mono text-xs">
               <li>Gross Impressions = (Cost / CPM) × 1,000</li>
               <li>GRPs = (Gross Impressions / Target Population) × 100</li>
               <li>GRPs = Reach% × Frequency</li>
@@ -39,8 +39,8 @@ export default function ShowMathPanel() {
           </section>
 
           <section>
-            <h4 className="font-semibold mb-1">Effective 3+ Reach (Poisson Approximation)</h4>
-            <ul className="list-disc list-inside space-y-1 text-gray-600 font-mono text-xs">
+            <h4 className="font-semibold mb-1 text-unlock-black">Effective 3+ Reach (Poisson Approximation)</h4>
+            <ul className="list-disc list-inside space-y-1 text-unlock-medium-gray font-mono text-xs">
               <li>λ = GRPs / 100</li>
               <li>P(0) = e<sup>−λ</sup></li>
               <li>P(1) = λ × e<sup>−λ</sup></li>
@@ -51,8 +51,8 @@ export default function ShowMathPanel() {
           </section>
 
           <section>
-            <h4 className="font-semibold mb-1">Combined Reach (Sequential Remainder Method)</h4>
-            <ul className="list-disc list-inside space-y-1 text-gray-600 font-mono text-xs">
+            <h4 className="font-semibold mb-1 text-unlock-black">Combined Reach (Sequential Remainder Method)</h4>
+            <ul className="list-disc list-inside space-y-1 text-unlock-medium-gray font-mono text-xs">
               <li>Sort tactics by Reach% descending</li>
               <li>Start: runningTotal = highestReach%</li>
               <li>For each next tactic:</li>
@@ -60,14 +60,14 @@ export default function ShowMathPanel() {
               <li className="ml-4">incremental = remainder × (nextReach% / 100)</li>
               <li className="ml-4">runningTotal += incremental</li>
             </ul>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-unlock-medium-gray">
               Equivalent to: combinedReach% = 100 × (1 − Π(1 − r<sub>i</sub>/100))
             </p>
           </section>
 
           <section>
-            <h4 className="font-semibold mb-1">Plan-Level Metrics</h4>
-            <ul className="list-disc list-inside space-y-1 text-gray-600 font-mono text-xs">
+            <h4 className="font-semibold mb-1 text-unlock-black">Plan-Level Metrics</h4>
+            <ul className="list-disc list-inside space-y-1 text-unlock-medium-gray font-mono text-xs">
               <li>Total GRPs = Σ(tactic GRPs)</li>
               <li>Combined Avg Frequency = Total GRPs / Combined Reach%</li>
               <li>Combined Eff. 3+ uses Poisson on Total GRPs</li>

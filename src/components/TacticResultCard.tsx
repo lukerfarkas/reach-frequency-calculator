@@ -10,10 +10,10 @@ interface Props {
 function Stat({ label, value, unit }: { label: string; value: string; unit?: string }) {
   return (
     <div className="flex flex-col">
-      <span className="text-xs text-gray-500 uppercase tracking-wide">{label}</span>
-      <span className="text-lg font-semibold text-gray-900">
+      <span className="text-xs text-unlock-medium-gray uppercase tracking-wide">{label}</span>
+      <span className="text-lg font-semibold text-unlock-black">
         {value}
-        {unit && <span className="text-sm font-normal text-gray-500 ml-0.5">{unit}</span>}
+        {unit && <span className="text-sm font-normal text-unlock-medium-gray ml-0.5">{unit}</span>}
       </span>
     </div>
   );
@@ -25,30 +25,30 @@ export default function TacticResultCard({ tactic }: Props) {
   return (
     <div
       className={`rounded-lg border p-4 shadow-sm ${
-        hasErrors ? "border-red-300 bg-red-50" : "border-gray-200 bg-white"
+        hasErrors ? "border-unlock-salmon bg-red-50" : "border-unlock-light-gray bg-white"
       }`}
     >
       {/* Header */}
       <div className="mb-3 flex items-start justify-between">
         <div>
-          <h3 className="text-base font-semibold text-gray-900">{tactic.tacticName}</h3>
-          <p className="text-xs text-gray-500">
+          <h3 className="text-base font-semibold text-unlock-black">{tactic.tacticName}</h3>
+          <p className="text-xs text-unlock-medium-gray">
             {tactic.channel} · {tactic.geoName} · {tactic.audienceName} · Pop:{" "}
             {fmtInt(tactic.audienceSize)}
           </p>
         </div>
         {tactic.isFullyResolved && (
-          <span className="rounded-full bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+          <span className="rounded-full bg-unlock-ice px-2 py-0.5 text-xs font-medium text-unlock-ocean">
             Resolved
           </span>
         )}
         {!tactic.isFullyResolved && !hasErrors && (
-          <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs font-medium text-yellow-700">
+          <span className="rounded-full bg-unlock-alabaster px-2 py-0.5 text-xs font-medium text-unlock-dark-gray">
             Partial
           </span>
         )}
         {hasErrors && (
-          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-unlock-red">
             Error
           </span>
         )}
@@ -56,7 +56,7 @@ export default function TacticResultCard({ tactic }: Props) {
 
       {/* Errors */}
       {hasErrors && (
-        <div className="mb-3 rounded bg-red-100 p-2 text-sm text-red-800">
+        <div className="mb-3 rounded bg-red-100 p-2 text-sm text-unlock-barn-red">
           {tactic.errors.map((e, i) => (
             <p key={i}>{e}</p>
           ))}
@@ -65,7 +65,7 @@ export default function TacticResultCard({ tactic }: Props) {
 
       {/* Warnings */}
       {tactic.warnings.length > 0 && (
-        <div className="mb-3 rounded bg-yellow-100 p-2 text-sm text-yellow-800">
+        <div className="mb-3 rounded bg-unlock-alabaster p-2 text-sm text-unlock-dark-gray">
           {tactic.warnings.map((w, i) => (
             <p key={i}>{w}</p>
           ))}
@@ -74,14 +74,14 @@ export default function TacticResultCard({ tactic }: Props) {
 
       {/* Derivation path */}
       {tactic.derivationPath && (
-        <p className="mb-3 text-xs italic text-gray-400">
+        <p className="mb-3 text-xs italic text-unlock-medium-gray">
           Derivation: {tactic.derivationPath}
         </p>
       )}
 
       {/* Input echo */}
       {(tactic.inputCost != null || tactic.inputCPM != null) && (
-        <div className="mb-3 flex gap-4 text-xs text-gray-500 border-b border-gray-100 pb-2">
+        <div className="mb-3 flex gap-4 text-xs text-unlock-medium-gray border-b border-unlock-light-gray pb-2">
           {tactic.inputCost != null && (
             <span>Cost: {fmtCurrency(tactic.inputCost)}</span>
           )}

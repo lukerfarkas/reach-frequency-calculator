@@ -45,15 +45,15 @@ interface Props {
 }
 
 const STATUS_DOT_CLASSES: Record<OverallStatus, string> = {
-  insufficient: "bg-gray-300",
+  insufficient: "bg-unlock-light-gray",
   partial: "bg-amber-400",
   ready: "bg-emerald-500",
 };
 
 const STATUS_BANNER_CLASSES: Record<OverallStatus, string> = {
-  insufficient: "bg-gray-50 text-gray-500 border-gray-200",
-  partial: "bg-amber-50 text-amber-700 border-amber-200",
-  ready: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  insufficient: "bg-gray-50 text-unlock-medium-gray border-unlock-light-gray",
+  partial: "bg-unlock-alabaster text-unlock-dark-gray border-unlock-salmon",
+  ready: "bg-unlock-ice text-unlock-ocean border-unlock-sky",
 };
 
 function FieldCell({
@@ -87,14 +87,14 @@ function FieldCell({
         onChange={(e) => onChange(id, field, e.target.value)}
         className={`w-full rounded border px-2 py-1.5 text-sm ${
           hasError
-            ? "border-red-400 bg-red-50 text-red-800"
-            : "border-gray-300 bg-white text-gray-900"
-        } focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500`}
+            ? "border-unlock-red bg-red-50 text-unlock-barn-red"
+            : "border-unlock-light-gray bg-white text-unlock-black"
+        } focus:border-unlock-ocean focus:outline-none focus:ring-1 focus:ring-unlock-ocean`}
         title={hasError ? errors.join("; ") : undefined}
         step={type === "number" ? "any" : undefined}
       />
       {hasError && (
-        <p className="mt-0.5 text-xs text-red-600 leading-tight">{errors[0]}</p>
+        <p className="mt-0.5 text-xs text-unlock-red leading-tight">{errors[0]}</p>
       )}
     </td>
   );
@@ -151,10 +151,10 @@ export default function TacticFormRow({
 
   // Group highlight tints (only when the group is actively being used)
   const costCpmTint = inputStatus.activeGroups.includes("volume_costcpm")
-    ? "bg-blue-50/60"
+    ? "bg-unlock-ice/40"
     : "";
   const reachFreqTint = inputStatus.activeGroups.includes("breakdown_reachfreq")
-    ? "bg-purple-50/60"
+    ? "bg-unlock-salmon/20"
     : "";
 
   const bannerClasses = STATUS_BANNER_CLASSES[inputStatus.overallStatus];
@@ -163,7 +163,7 @@ export default function TacticFormRow({
     <>
       <tr className={hasAnyError ? "bg-red-50/50" : index % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
         {/* Row number + status dot */}
-        <td className="px-2 py-1.5 text-center text-xs text-gray-500 font-mono">
+        <td className="px-2 py-1.5 text-center text-xs text-unlock-medium-gray font-mono">
           <span className="inline-flex items-center gap-1">
             <span
               className={`inline-block w-2 h-2 rounded-full transition-colors duration-300 ${STATUS_DOT_CLASSES[inputStatus.overallStatus]}`}
@@ -214,7 +214,7 @@ export default function TacticFormRow({
           <select
             value={data.channel}
             onChange={(e) => onChange(data.id, "channel", e.target.value)}
-            className="w-full rounded border border-gray-300 bg-white px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full rounded border border-unlock-light-gray bg-white px-2 py-1.5 text-sm focus:border-unlock-ocean focus:outline-none focus:ring-1 focus:ring-unlock-ocean"
           >
             {CHANNELS.map((ch) => (
               <option key={ch} value={ch}>
@@ -290,7 +290,7 @@ export default function TacticFormRow({
         <td className="px-2 py-1.5 text-center">
           <button
             onClick={() => onRemove(data.id)}
-            className="rounded p-1 text-gray-400 hover:bg-red-100 hover:text-red-600 transition-colors"
+            className="rounded p-1 text-unlock-medium-gray hover:bg-red-100 hover:text-unlock-red transition-colors"
             title="Remove tactic"
           >
             <svg
@@ -314,7 +314,7 @@ export default function TacticFormRow({
         <td colSpan={13} className="px-0 py-0">
           <div
             className={`mx-3 mb-1.5 mt-0.5 rounded border px-3 py-1.5 text-xs font-medium transition-all duration-300 ${bannerClasses} ${
-              isFlashing ? "ring-2 ring-offset-1 ring-blue-300 scale-[1.005]" : ""
+              isFlashing ? "ring-2 ring-offset-1 ring-unlock-sky scale-[1.005]" : ""
             }`}
             role="status"
             aria-live="polite"
