@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useEffect, useRef, useState } from "react";
 import { CHANNELS, type Channel } from "@/lib/schemas";
 import { analyzeRowInputs, type OverallStatus } from "@/lib/inputStatus";
 
@@ -50,6 +50,12 @@ const STATUS_DOT_CLASSES: Record<OverallStatus, string> = {
   ready: "bg-emerald-500",
 };
 
+const STATUS_BANNER_CLASSES: Record<OverallStatus, string> = {
+  insufficient: "bg-gray-50 text-gray-500 border-gray-200",
+  partial: "bg-amber-50 text-amber-700 border-amber-200",
+  ready: "bg-emerald-50 text-emerald-700 border-emerald-200",
+};
+
 function FieldCell({
   value,
   field,
@@ -94,6 +100,30 @@ function FieldCell({
   );
 }
 
+/**
+ * Hook that triggers a brief flash animation whenever the value changes.
+ * Returns true for a short duration after each change.
+ */
+function useFlashOnChange(value: string): boolean {
+  const [flashing, setFlashing] = useState(false);
+  const prevValue = useRef(value);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    if (value !== prevValue.current) {
+      prevValue.current = value;
+      setFlashing(true);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => setFlashing(false), 600);
+    }
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, [value]);
+
+  return flashing;
+}
+
 export default function TacticFormRow({
   data,
   index,
@@ -116,6 +146,9 @@ export default function TacticFormRow({
     [data.grps, data.grossImpressions, data.cost, data.cpm, data.reachPercent, data.frequency]
   );
 
+  // Flash animation when the guidance message changes
+  const isFlashing = useFlashOnChange(inputStatus.guidanceMessage);
+
   // Group highlight tints (only when the group is actively being used)
   const costCpmTint = inputStatus.activeGroups.includes("volume_costcpm")
     ? "bg-blue-50/60"
@@ -124,9 +157,7 @@ export default function TacticFormRow({
     ? "bg-purple-50/60"
     : "";
 
-  // Show the hint row when user has started but isn't at "ready" yet
-  const showHint =
-    inputStatus.hasStartedInput && inputStatus.overallStatus !== "ready";
+  const bannerClasses = STATUS_BANNER_CLASSES[inputStatus.overallStatus];
 
   return (
     <>
@@ -135,7 +166,7 @@ export default function TacticFormRow({
         <td className="px-2 py-1.5 text-center text-xs text-gray-500 font-mono">
           <span className="inline-flex items-center gap-1">
             <span
-              className={`inline-block w-1.5 h-1.5 rounded-full ${STATUS_DOT_CLASSES[inputStatus.overallStatus]}`}
+              className={`inline-block w-2 h-2 rounded-full transition-colors duration-300 ${STATUS_DOT_CLASSES[inputStatus.overallStatus]}`}
               title={inputStatus.guidanceMessage}
               aria-label={`Row status: ${inputStatus.overallStatus} — ${inputStatus.guidanceMessage}`}
             />
@@ -278,18 +309,24 @@ export default function TacticFormRow({
         </td>
       </tr>
 
-      {/* Guidance hint row */}
-      {showHint && (
-        <tr>
-          <td
-            colSpan={13}
-            className="px-4 py-1 text-xs text-gray-400 border-b border-gray-100 bg-gray-50/30"
+      {/* Coaching guidance row — always visible */}
+      <tr>
+        <td colSpan={13} className="px-0 py-0">
+          <div
+            className={`mx-3 mb-1.5 mt-0.5 rounded border px-3 py-1.5 text-xs font-medium transition-all duration-300 ${bannerClasses} ${
+              isFlashing ? "ring-2 ring-offset-1 ring-blue-300 scale-[1.005]" : ""
+            }`}
             role="status"
+            aria-live="polite"
           >
-            <span className="italic">{inputStatus.guidanceMessage}</span>
-          </td>
-        </tr>
-      )}
+            {inputStatus.overallStatus === "ready" ? (
+              <span>&#10003; {inputStatus.guidanceMessage}</span>
+            ) : (
+              <span>&#8594; {inputStatus.guidanceMessage}</span>
+            )}
+          </div>
+        </td>
+      </tr>
     </>
   );
 }

@@ -4,7 +4,7 @@
  * This is a lightweight, pure function that checks which fields the user
  * has filled in and determines:
  *   - Whether the row is "ready" (fully resolvable), "partial", or "insufficient"
- *   - A guidance message explaining what's needed
+ *   - A coaching-style guidance message explaining what to do next
  *   - Which field groups are actively being used
  *
  * This mirrors the resolver's 5 input paths (A–E) but does NO math —
@@ -83,42 +83,51 @@ export function analyzeRowInputs(form: {
   const pathDComplete = has.reachPercent && has.frequency;
   const hasAnyBreakdown = has.reachPercent || has.frequency;
 
-  // Determine overall status
+  // Determine overall status and coaching message
   let overallStatus: OverallStatus;
   let guidanceMessage: string;
 
   if (pathDComplete) {
-    // Path D: Reach% + Frequency → fully resolved on its own
     overallStatus = "ready";
-    guidanceMessage = "Ready — full resolution from Reach% + Frequency";
+    guidanceMessage = "All set! Reach% + Frequency is enough to calculate everything.";
   } else if (anyVolumePath && hasAnyBreakdown) {
-    // Volume path + at least one breakdown field → resolver can derive the other
     overallStatus = "ready";
-    guidanceMessage = "Ready — full resolution possible";
+    guidanceMessage = "All set! You have enough data for a full calculation.";
   } else if (anyVolumePath && !hasAnyBreakdown) {
-    // Have volume but no breakdown → can compute GRPs/impressions but not reach/freq
+    // Have volume, coach them to add breakdown
+    if (has.grps) {
+      guidanceMessage =
+        "Good, GRPs are in. Now add Reach% or Frequency so we can break that down.";
+    } else if (has.grossImpressions) {
+      guidanceMessage =
+        "Got your impressions. Now add Reach% or Frequency to complete the picture.";
+    } else {
+      // Cost + CPM complete
+      guidanceMessage =
+        "Cost + CPM locked in. Now add Reach% or Frequency and you're done.";
+    }
     overallStatus = "partial";
-    guidanceMessage = "Add Reach% or Frequency for full resolution";
   } else if (has.reachPercent && !has.frequency && !anyVolumePath) {
-    // Path E: Reach% only
+    // Path E: Reach% only — can compute reach# but nothing else
     overallStatus = "partial";
     guidanceMessage =
-      "Reach% only — add Frequency, GRPs, Impressions, or Cost+CPM for more";
+      "Have your Reach%. Add Frequency to complete the pair, or enter GRPs/Impressions/Cost+CPM for volume.";
   } else if (has.frequency && !has.reachPercent && !anyVolumePath) {
-    // Frequency alone isn't a recognized path
     overallStatus = "insufficient";
-    guidanceMessage = "Add Reach% with Frequency, or provide GRPs/Impressions/Cost+CPM";
+    guidanceMessage =
+      "Frequency alone isn't enough. Pair it with Reach%, or enter GRPs/Impressions/Cost+CPM.";
   } else if (pathCPartial) {
-    // Started Cost+CPM but incomplete
     const missing = !has.cost ? "Cost" : "CPM";
     overallStatus = "insufficient";
-    guidanceMessage = `Add ${missing} to use the Cost + CPM path`;
+    guidanceMessage = `Almost there — add ${missing} to complete the Cost + CPM pair.`;
   } else if (!hasStartedInput) {
     overallStatus = "insufficient";
-    guidanceMessage = "Enter GRPs, Impressions, Cost+CPM, or Reach%+Frequency";
+    guidanceMessage =
+      "Start with what you know: Cost+CPM, GRPs, Impressions, or Reach%+Frequency.";
   } else {
     overallStatus = "insufficient";
-    guidanceMessage = "Enter GRPs, Impressions, Cost+CPM, or Reach%+Frequency";
+    guidanceMessage =
+      "Start with what you know: Cost+CPM, GRPs, Impressions, or Reach%+Frequency.";
   }
 
   return {

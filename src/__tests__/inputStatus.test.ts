@@ -15,19 +15,21 @@ describe("analyzeRowInputs", () => {
   // Insufficient cases
   // -----------------------------------------------------------------------
 
-  it("empty form → insufficient", () => {
+  it("empty form → insufficient with coaching prompt", () => {
     const result = analyzeRowInputs(empty);
     expect(result.overallStatus).toBe("insufficient");
     expect(result.hasStartedInput).toBe(false);
+    expect(result.guidanceMessage).toContain("Start with what you know");
   });
 
-  it("only Cost filled → insufficient (partial Cost+CPM)", () => {
+  it("only Cost filled → insufficient, asks for CPM", () => {
     const result = analyzeRowInputs({ ...empty, cost: "5000000" });
     expect(result.overallStatus).toBe("insufficient");
     expect(result.guidanceMessage).toContain("CPM");
+    expect(result.guidanceMessage).toContain("Almost there");
   });
 
-  it("only CPM filled → insufficient (partial Cost+CPM)", () => {
+  it("only CPM filled → insufficient, asks for Cost", () => {
     const result = analyzeRowInputs({ ...empty, cpm: "25" });
     expect(result.overallStatus).toBe("insufficient");
     expect(result.guidanceMessage).toContain("Cost");
@@ -61,43 +63,48 @@ describe("analyzeRowInputs", () => {
   // Partial cases
   // -----------------------------------------------------------------------
 
-  it("GRPs only → partial (need breakdown)", () => {
+  it("GRPs only → partial, coaches to add breakdown", () => {
     const result = analyzeRowInputs({ ...empty, grps: "160" });
     expect(result.overallStatus).toBe("partial");
+    expect(result.guidanceMessage).toContain("GRPs are in");
     expect(result.guidanceMessage).toContain("Reach%");
     expect(result.guidanceMessage).toContain("Frequency");
   });
 
-  it("Gross Impressions only → partial", () => {
+  it("Gross Impressions only → partial, coaches to add breakdown", () => {
     const result = analyzeRowInputs({ ...empty, grossImpressions: "80000000" });
     expect(result.overallStatus).toBe("partial");
+    expect(result.guidanceMessage).toContain("impressions");
     expect(result.guidanceMessage).toContain("Reach%");
   });
 
-  it("Cost + CPM → partial (need breakdown)", () => {
+  it("Cost + CPM → partial, coaches to add breakdown", () => {
     const result = analyzeRowInputs({ ...empty, cost: "5000000", cpm: "25" });
     expect(result.overallStatus).toBe("partial");
-    expect(result.guidanceMessage).toContain("Reach%");
+    expect(result.guidanceMessage).toContain("Cost + CPM locked in");
   });
 
-  it("Reach% only → partial (Path E)", () => {
+  it("Reach% only → partial, coaches next steps", () => {
     const result = analyzeRowInputs({ ...empty, reachPercent: "45" });
     expect(result.overallStatus).toBe("partial");
-    expect(result.guidanceMessage).toContain("Reach% only");
+    expect(result.guidanceMessage).toContain("Reach%");
+    expect(result.guidanceMessage).toContain("Frequency");
   });
 
   // -----------------------------------------------------------------------
   // Ready cases
   // -----------------------------------------------------------------------
 
-  it("Reach% + Frequency → ready (Path D)", () => {
+  it("Reach% + Frequency → ready with confirmation", () => {
     const result = analyzeRowInputs({ ...empty, reachPercent: "30", frequency: "4" });
     expect(result.overallStatus).toBe("ready");
+    expect(result.guidanceMessage).toContain("All set");
   });
 
   it("GRPs + Reach% → ready", () => {
     const result = analyzeRowInputs({ ...empty, grps: "160", reachPercent: "60" });
     expect(result.overallStatus).toBe("ready");
+    expect(result.guidanceMessage).toContain("All set");
   });
 
   it("GRPs + Frequency → ready", () => {
