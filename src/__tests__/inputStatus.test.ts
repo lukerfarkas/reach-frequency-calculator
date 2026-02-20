@@ -179,4 +179,37 @@ describe("analyzeRowInputs", () => {
     expect(result.activeGroups).toContain("volume_costcpm");
     expect(result.activeGroups).toContain("breakdown_reachfreq");
   });
+
+  // -----------------------------------------------------------------------
+  // TV reach curve coaching
+  // -----------------------------------------------------------------------
+
+  it("TV + GRPs only → ready (reach curve available)", () => {
+    const result = analyzeRowInputs({ ...empty, grps: "160", channel: "TV" });
+    expect(result.overallStatus).toBe("ready");
+    expect(result.guidanceMessage).toContain("auto-estimated");
+  });
+
+  it("TV + Impressions only → ready (reach curve available)", () => {
+    const result = analyzeRowInputs({ ...empty, grossImpressions: "80000000", channel: "TV" });
+    expect(result.overallStatus).toBe("ready");
+    expect(result.guidanceMessage).toContain("auto-estimated");
+  });
+
+  it("TV + Cost+CPM → ready (reach curve available)", () => {
+    const result = analyzeRowInputs({ ...empty, cost: "5000000", cpm: "25", channel: "TV" });
+    expect(result.overallStatus).toBe("ready");
+    expect(result.guidanceMessage).toContain("auto-estimated");
+  });
+
+  it("Digital + GRPs only → still partial (no reach curve)", () => {
+    const result = analyzeRowInputs({ ...empty, grps: "160", channel: "Digital" });
+    expect(result.overallStatus).toBe("partial");
+    expect(result.guidanceMessage).not.toContain("auto-estimated");
+  });
+
+  it("no channel (backward compat) + GRPs → still partial", () => {
+    const result = analyzeRowInputs({ ...empty, grps: "160" });
+    expect(result.overallStatus).toBe("partial");
+  });
 });

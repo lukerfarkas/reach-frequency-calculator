@@ -142,8 +142,9 @@ export default function TacticFormRow({
         cpm: data.cpm,
         reachPercent: data.reachPercent,
         frequency: data.frequency,
+        channel: data.channel,
       }),
-    [data.grps, data.grossImpressions, data.cost, data.cpm, data.reachPercent, data.frequency]
+    [data.grps, data.grossImpressions, data.cost, data.cpm, data.reachPercent, data.frequency, data.channel]
   );
 
   // Flash animation when the guidance message changes

@@ -51,6 +51,20 @@ export default function ShowMathPanel() {
           </section>
 
           <section>
+            <h4 className="font-semibold mb-1 text-unlock-black">TV Reach Curve (Estimate)</h4>
+            <ul className="list-disc list-inside space-y-1 text-unlock-medium-gray font-mono text-xs">
+              <li>Reach% = 100 × (1 − e<sup>−k × GRPs / 100</sup>)</li>
+              <li>k = 1.0 for general TV</li>
+              <li>Frequency = GRPs / Reach%</li>
+            </ul>
+            <p className="mt-1 text-xs text-unlock-medium-gray">
+              This is an exponential saturation approximation. Actual TV reach curves
+              vary by daypart, network mix, and audience composition. Auto-applied
+              when channel is TV and no Reach%/Frequency is provided.
+            </p>
+          </section>
+
+          <section>
             <h4 className="font-semibold mb-1 text-unlock-black">Combined Reach (Sequential Remainder Method)</h4>
             <ul className="list-disc list-inside space-y-1 text-unlock-medium-gray font-mono text-xs">
               <li>Sort tactics by Reach% descending</li>

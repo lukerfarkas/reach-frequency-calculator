@@ -49,6 +49,7 @@ export function analyzeRowInputs(form: {
   cpm: string;
   reachPercent: string;
   frequency: string;
+  channel?: string;
 }): RowInputStatus {
   const has = {
     grps: isPresent(form.grps),
@@ -94,19 +95,33 @@ export function analyzeRowInputs(form: {
     overallStatus = "ready";
     guidanceMessage = "All set! You have enough data for a full calculation.";
   } else if (anyVolumePath && !hasAnyBreakdown) {
-    // Have volume, coach them to add breakdown
-    if (has.grps) {
-      guidanceMessage =
-        "Good, GRPs are in. Now add Reach% or Frequency so we can break that down.";
-    } else if (has.grossImpressions) {
-      guidanceMessage =
-        "Got your impressions. Now add Reach% or Frequency to complete the picture.";
+    // Have volume but no breakdown — for TV, reach curve will auto-estimate
+    if (form.channel === "TV") {
+      if (has.grps) {
+        guidanceMessage =
+          "GRPs are in for TV. Reach% will be auto-estimated from the reach curve, or add your own Reach%/Frequency.";
+      } else if (has.grossImpressions) {
+        guidanceMessage =
+          "Got your impressions for TV. Reach% will be auto-estimated, or add your own.";
+      } else {
+        guidanceMessage =
+          "Cost + CPM locked in for TV. Reach% will be auto-estimated, or add your own.";
+      }
+      overallStatus = "ready";
     } else {
-      // Cost + CPM complete
-      guidanceMessage =
-        "Cost + CPM locked in. Now add Reach% or Frequency and you're done.";
+      // Non-TV: coach them to add breakdown
+      if (has.grps) {
+        guidanceMessage =
+          "Good, GRPs are in. Now add Reach% or Frequency so we can break that down.";
+      } else if (has.grossImpressions) {
+        guidanceMessage =
+          "Got your impressions. Now add Reach% or Frequency to complete the picture.";
+      } else {
+        guidanceMessage =
+          "Cost + CPM locked in. Now add Reach% or Frequency and you're done.";
+      }
+      overallStatus = "partial";
     }
-    overallStatus = "partial";
   } else if (has.reachPercent && !has.frequency && !anyVolumePath) {
     // Path E: Reach% only — can compute reach# but nothing else
     overallStatus = "partial";

@@ -7,13 +7,14 @@ interface Props {
   tactic: ResolvedTactic;
 }
 
-function Stat({ label, value, unit }: { label: string; value: string; unit?: string }) {
+function Stat({ label, value, unit, badge }: { label: string; value: string; unit?: string; badge?: string }) {
   return (
     <div className="flex flex-col">
       <span className="text-xs text-unlock-medium-gray uppercase tracking-wide">{label}</span>
       <span className="text-lg font-semibold text-unlock-black">
         {value}
         {unit && <span className="text-sm font-normal text-unlock-medium-gray ml-0.5">{unit}</span>}
+        {badge && <span className="ml-1.5 rounded bg-unlock-alabaster px-1.5 py-0.5 text-[10px] font-medium text-unlock-dark-gray align-middle">{badge}</span>}
       </span>
     </div>
   );
@@ -102,6 +103,7 @@ export default function TacticResultCard({ tactic }: Props) {
           label="Reach %"
           value={tactic.reachPercent != null ? fmt2(tactic.reachPercent) : "—"}
           unit="%"
+          badge={tactic.reachPercentEstimated ? "Est." : undefined}
         />
         <Stat
           label="Reach #"
@@ -111,6 +113,7 @@ export default function TacticResultCard({ tactic }: Props) {
           label="Avg Frequency"
           value={tactic.frequency != null ? fmt2(tactic.frequency) : "—"}
           unit="×"
+          badge={tactic.reachPercentEstimated ? "Est." : undefined}
         />
         <Stat
           label="Eff. 3+ Reach %"

@@ -107,4 +107,47 @@ describe("resolveTactic", () => {
     expect(result.effective3Plus).not.toBeNull();
     expect(result.effective3Plus!.effective3PlusPercent).toBeCloseTo(57.68, 1);
   });
+
+  // --- TV Reach Curve tests ---
+
+  const tvInput = { ...baseInput, channel: "TV" };
+
+  it("auto-estimates Reach% for TV when GRPs known but no Reach/Frequency", () => {
+    const result = resolveTactic({ ...tvInput, grps: 200 });
+    // Reach% = 100 * (1 - e^-2) ≈ 86.47%
+    expect(result.reachPercent).toBeCloseTo(86.47, 1);
+    expect(result.reachPercentEstimated).toBe(true);
+    expect(result.frequency).toBeCloseTo(200 / 86.47, 0);
+    expect(result.isFullyResolved).toBe(true);
+    expect(result.effective3Plus).not.toBeNull();
+  });
+
+  it("does NOT auto-estimate Reach% for non-TV channels", () => {
+    const result = resolveTactic({ ...baseInput, grps: 200 });
+    expect(result.reachPercent).toBeNull();
+    expect(result.reachPercentEstimated).toBe(false);
+    expect(result.isFullyResolved).toBe(false);
+  });
+
+  it("uses user-provided Reach% over estimate for TV", () => {
+    const result = resolveTactic({ ...tvInput, grps: 200, reachPercent: 75 });
+    expect(result.reachPercent).toBe(75);
+    expect(result.reachPercentEstimated).toBe(false);
+    expect(result.frequency).toBeCloseTo(200 / 75, 1);
+  });
+
+  it("auto-estimates Reach% for TV from Cost+CPM derived GRPs", () => {
+    const result = resolveTactic({ ...tvInput, cost: 5_000_000, cpm: 25 });
+    // GRPs = 160, Reach% = 100 * (1 - e^-1.6) ≈ 79.81%
+    expect(result.grps).toBe(160);
+    expect(result.reachPercent).toBeCloseTo(79.81, 1);
+    expect(result.reachPercentEstimated).toBe(true);
+    expect(result.isFullyResolved).toBe(true);
+  });
+
+  it("reachPercentEstimated is false when Reach%+Frequency provided for TV", () => {
+    const result = resolveTactic({ ...tvInput, reachPercent: 60, frequency: 5 });
+    expect(result.reachPercent).toBe(60);
+    expect(result.reachPercentEstimated).toBe(false);
+  });
 });

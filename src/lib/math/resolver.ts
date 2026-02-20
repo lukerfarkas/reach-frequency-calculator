@@ -22,6 +22,7 @@ import {
   effectiveReach3Plus,
   type EffectiveReachResult,
 } from "./calculations";
+import { estimateReachPercent, getReachCurveK } from "./reachCurve";
 
 export interface TacticInputs {
   tacticName: string;
@@ -63,6 +64,7 @@ export interface ResolvedTactic {
   warnings: string[];
   errors: string[];
   isFullyResolved: boolean;
+  reachPercentEstimated: boolean; // true when Reach% was auto-estimated via reach curve
 }
 
 export function resolveTactic(input: TacticInputs): ResolvedTactic {
@@ -84,6 +86,7 @@ export function resolveTactic(input: TacticInputs): ResolvedTactic {
     warnings: [],
     errors: [],
     isFullyResolved: false,
+    reachPercentEstimated: false,
   };
 
   try {
@@ -168,11 +171,22 @@ export function resolveTactic(input: TacticInputs): ResolvedTactic {
         return result;
       }
     } else {
-      // Have GRPs but no reach or frequency
-      // Cannot break GRPs into reach × frequency without additional info
-      result.warnings.push(
-        "GRPs computed but Reach% and Frequency cannot be individually determined without at least one of them being provided."
-      );
+      // Have GRPs but no reach or frequency — try reach curve if available
+      const curveK = getReachCurveK(input.channel);
+      if (curveK != null && grps > 0) {
+        const estimated = estimateReachPercent(grps, curveK);
+        result.reachPercent = estimated;
+        result.frequency = averageFrequency(grps, estimated);
+        result.reachPercentEstimated = true;
+        result.derivationPath += " → Reach% estimated via reach curve";
+        result.warnings.push(
+          `Reach% (${estimated.toFixed(1)}%) was auto-estimated using a ${input.channel} reach curve. This is an approximation — actual reach varies by daypart, network mix, and audience.`
+        );
+      } else {
+        result.warnings.push(
+          "GRPs computed but Reach% and Frequency cannot be individually determined without at least one of them being provided."
+        );
+      }
     }
 
     // Validate reach
