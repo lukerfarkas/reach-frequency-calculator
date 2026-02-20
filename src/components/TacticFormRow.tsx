@@ -4,7 +4,14 @@ import { useMemo, useEffect, useRef, useState } from "react";
 import { CHANNELS, type Channel } from "@/lib/schemas";
 import { analyzeRowInputs, type OverallStatus } from "@/lib/inputStatus";
 import SearchableSelect from "@/components/SearchableSelect";
-import { DMA_LIST, DEMO_LIST, lookupAudienceSize } from "@/lib/data/dmaAudienceData";
+import AgeRangeSelector from "@/components/AgeRangeSelector";
+import {
+  DMA_LIST,
+  computeAudienceSize,
+  getHouseholds,
+  formatDemoLabel,
+  type Sex,
+} from "@/lib/data/dmaAudienceData";
 
 export interface TacticFormData {
   id: string;
@@ -20,7 +27,10 @@ export interface TacticFormData {
   reachPercent: string;
   frequency: string;
   dmaCode: string;
-  demoId: string;
+  demoSex: Sex;
+  demoAgeMin: number;
+  demoAgeMax: number;
+  demoIsHouseholds: boolean;
   audienceSizeOverridden: boolean;
 }
 
@@ -39,14 +49,16 @@ export function emptyTacticForm(id?: string): TacticFormData {
     reachPercent: "",
     frequency: "",
     dmaCode: "",
-    demoId: "",
+    demoSex: "adults",
+    demoAgeMin: 18,
+    demoAgeMax: 999,
+    demoIsHouseholds: false,
     audienceSizeOverridden: false,
   };
 }
 
 // Pre-compute dropdown option lists
 const DMA_OPTIONS = DMA_LIST.map((d) => ({ value: d.code, label: d.name }));
-const DEMO_OPTIONS = DEMO_LIST.map((d) => ({ value: d.id, label: d.label }));
 
 interface Props {
   data: TacticFormData;
@@ -119,7 +131,6 @@ function FieldCell({
 
 /**
  * Hook that triggers a brief flash animation whenever the value changes.
- * Returns true for a short duration after each change.
  */
 function useFlashOnChange(value: string): boolean {
   const [flashing, setFlashing] = useState(false);
@@ -139,6 +150,34 @@ function useFlashOnChange(value: string): boolean {
   }, [value]);
 
   return flashing;
+}
+
+/** Compute audience size + label from current demo settings and DMA. */
+function computeDemoUpdates(
+  dmaCode: string,
+  sex: Sex,
+  ageMin: number,
+  ageMax: number,
+  isHouseholds: boolean,
+  overridden: boolean
+): Partial<TacticFormData> {
+  const updates: Partial<TacticFormData> = {};
+
+  if (isHouseholds) {
+    updates.audienceName = "Households";
+    if (dmaCode && !overridden) {
+      const hh = getHouseholds(dmaCode);
+      if (hh != null) updates.audienceSize = String(hh);
+    }
+  } else {
+    updates.audienceName = formatDemoLabel(sex, ageMin, ageMax);
+    if (dmaCode && !overridden) {
+      const size = computeAudienceSize(dmaCode, ageMin, ageMax, sex);
+      if (size != null) updates.audienceSize = String(size);
+    }
+  }
+
+  return updates;
 }
 
 export default function TacticFormRow({
@@ -165,10 +204,8 @@ export default function TacticFormRow({
     [data.grps, data.grossImpressions, data.cost, data.cpm, data.reachPercent, data.frequency, data.channel]
   );
 
-  // Flash animation when the guidance message changes
   const isFlashing = useFlashOnChange(inputStatus.guidanceMessage);
 
-  // Group highlight tints (only when the group is actively being used)
   const costCpmTint = inputStatus.activeGroups.includes("volume_costcpm")
     ? "bg-unlock-ice/40"
     : "";
@@ -178,8 +215,9 @@ export default function TacticFormRow({
 
   const bannerClasses = STATUS_BANNER_CLASSES[inputStatus.overallStatus];
 
-  // Audience size auto-fill: when dmaCode + demoId are set and user hasn't manually overridden
-  const isAutoFilled = data.dmaCode !== "" && data.demoId !== "" && !data.audienceSizeOverridden;
+  // Is audience size auto-filled (DMA set + demo configured + not manually overridden)?
+  const hasDemoConfig = data.demoIsHouseholds || data.dmaCode !== "";
+  const isAutoFilled = data.dmaCode !== "" && hasDemoConfig && !data.audienceSizeOverridden;
 
   return (
     <>
@@ -213,57 +251,63 @@ export default function TacticFormRow({
             hasError={!!errors.geoName?.length}
             onSelect={(code) => {
               const dma = DMA_LIST.find((d) => d.code === code);
-              const updates: Partial<TacticFormData> = {
+              const demoUpdates = computeDemoUpdates(
+                code, data.demoSex, data.demoAgeMin, data.demoAgeMax,
+                data.demoIsHouseholds, data.audienceSizeOverridden
+              );
+              onBatchChange(data.id, {
                 dmaCode: code,
                 geoName: dma?.name ?? "",
-              };
-              // Auto-fill audience size if demo is also set and not overridden
-              if (data.demoId && !data.audienceSizeOverridden) {
-                const size = lookupAudienceSize(code, data.demoId);
-                if (size != null) {
-                  updates.audienceSize = String(size);
-                }
-              }
-              onBatchChange(data.id, updates);
+                ...demoUpdates,
+              });
             }}
           />
           {errors.geoName?.length > 0 && (
             <p className="mt-0.5 text-xs text-unlock-red leading-tight">{errors.geoName[0]}</p>
           )}
         </td>
-        {/* Demo audience dropdown */}
-        <td className="px-2 py-1.5 min-w-[130px]">
-          <select
-            value={data.demoId}
-            onChange={(e) => {
-              const demoId = e.target.value;
-              const demo = DEMO_LIST.find((d) => d.id === demoId);
-              const updates: Partial<TacticFormData> = {
-                demoId,
-                audienceName: demo?.label ?? "",
-              };
-              // Auto-fill audience size if DMA is also set and not overridden
-              if (data.dmaCode && !data.audienceSizeOverridden) {
-                const size = lookupAudienceSize(data.dmaCode, demoId);
-                if (size != null) {
-                  updates.audienceSize = String(size);
-                }
-              }
-              onBatchChange(data.id, updates);
+        {/* Audience demographic: age range slider + sex toggle */}
+        <td className="px-2 py-1.5 min-w-[150px]">
+          <AgeRangeSelector
+            ageMin={data.demoAgeMin}
+            ageMax={data.demoAgeMax}
+            sex={data.demoSex}
+            isHouseholds={data.demoIsHouseholds}
+            hasError={!!errors.audienceName?.length}
+            onChangeAge={(ageMin, ageMax) => {
+              const demoUpdates = computeDemoUpdates(
+                data.dmaCode, data.demoSex, ageMin, ageMax,
+                false, data.audienceSizeOverridden
+              );
+              onBatchChange(data.id, {
+                demoAgeMin: ageMin,
+                demoAgeMax: ageMax,
+                demoIsHouseholds: false,
+                ...demoUpdates,
+              });
             }}
-            className={`w-full rounded border px-2 py-1.5 text-sm ${
-              errors.audienceName?.length
-                ? "border-unlock-red bg-red-50 text-unlock-barn-red"
-                : "border-unlock-light-gray bg-white text-unlock-black"
-            } focus:border-unlock-ocean focus:outline-none focus:ring-1 focus:ring-unlock-ocean`}
-          >
-            <option value="">Select demo...</option>
-            {DEMO_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+            onChangeSex={(sex) => {
+              const demoUpdates = computeDemoUpdates(
+                data.dmaCode, sex, data.demoAgeMin, data.demoAgeMax,
+                false, data.audienceSizeOverridden
+              );
+              onBatchChange(data.id, {
+                demoSex: sex,
+                demoIsHouseholds: false,
+                ...demoUpdates,
+              });
+            }}
+            onToggleHouseholds={(hh) => {
+              const demoUpdates = computeDemoUpdates(
+                data.dmaCode, data.demoSex, data.demoAgeMin, data.demoAgeMax,
+                hh, data.audienceSizeOverridden
+              );
+              onBatchChange(data.id, {
+                demoIsHouseholds: hh,
+                ...demoUpdates,
+              });
+            }}
+          />
           {errors.audienceName?.length > 0 && (
             <p className="mt-0.5 text-xs text-unlock-red leading-tight">{errors.audienceName[0]}</p>
           )}
@@ -276,10 +320,9 @@ export default function TacticFormRow({
           type="number"
           errors={errors.audienceSize}
           onChange={(id, field, value) => {
-            // Manual edit overrides auto-fill
             onChange(id, field, value);
             if (!data.audienceSizeOverridden) {
-              onChange(id, "audienceSizeOverridden" as keyof TacticFormData, "true");
+              onBatchChange(data.id, { audienceSizeOverridden: true });
             }
           }}
           className="min-w-[120px]"
@@ -384,7 +427,7 @@ export default function TacticFormRow({
         </td>
       </tr>
 
-      {/* Coaching guidance row — always visible */}
+      {/* Coaching guidance row */}
       <tr>
         <td colSpan={13} className="px-0 py-0">
           <div

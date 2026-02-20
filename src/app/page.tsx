@@ -34,7 +34,10 @@ function tacticFormFromInput(t: TacticInput): TacticFormData {
     reachPercent: t.reachPercent != null ? String(t.reachPercent) : "",
     frequency: t.frequency != null ? String(t.frequency) : "",
     dmaCode: "",
-    demoId: "",
+    demoSex: "adults" as const,
+    demoAgeMin: 18,
+    demoAgeMax: 999,
+    demoIsHouseholds: false,
     audienceSizeOverridden: false,
   };
 }
@@ -296,7 +299,10 @@ export default function HomePage() {
               reachPercent: t.reachPercent != null ? String(t.reachPercent) : "",
               frequency: t.frequency != null ? String(t.frequency) : "",
               dmaCode: typeof t.dmaCode === "string" ? t.dmaCode : "",
-              demoId: typeof t.demoId === "string" ? t.demoId : "",
+              demoSex: (t.demoSex === "adults" || t.demoSex === "males" || t.demoSex === "females") ? t.demoSex : "adults",
+              demoAgeMin: typeof t.demoAgeMin === "number" ? t.demoAgeMin : 18,
+              demoAgeMax: typeof t.demoAgeMax === "number" ? t.demoAgeMax : 999,
+              demoIsHouseholds: typeof t.demoIsHouseholds === "boolean" ? t.demoIsHouseholds : false,
               audienceSizeOverridden: typeof t.audienceSizeOverridden === "boolean" ? t.audienceSizeOverridden : false,
             };
             return form;
