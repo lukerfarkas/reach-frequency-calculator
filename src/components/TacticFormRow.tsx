@@ -3,6 +3,8 @@
 import { useMemo, useEffect, useRef, useState } from "react";
 import { CHANNELS, type Channel } from "@/lib/schemas";
 import { analyzeRowInputs, type OverallStatus } from "@/lib/inputStatus";
+import SearchableSelect from "@/components/SearchableSelect";
+import { DMA_LIST, DEMO_LIST, lookupAudienceSize } from "@/lib/data/dmaAudienceData";
 
 export interface TacticFormData {
   id: string;
@@ -17,6 +19,9 @@ export interface TacticFormData {
   cpm: string;
   reachPercent: string;
   frequency: string;
+  dmaCode: string;
+  demoId: string;
+  audienceSizeOverridden: boolean;
 }
 
 export function emptyTacticForm(id?: string): TacticFormData {
@@ -33,14 +38,22 @@ export function emptyTacticForm(id?: string): TacticFormData {
     cpm: "",
     reachPercent: "",
     frequency: "",
+    dmaCode: "",
+    demoId: "",
+    audienceSizeOverridden: false,
   };
 }
+
+// Pre-compute dropdown option lists
+const DMA_OPTIONS = DMA_LIST.map((d) => ({ value: d.code, label: d.name }));
+const DEMO_OPTIONS = DEMO_LIST.map((d) => ({ value: d.id, label: d.label }));
 
 interface Props {
   data: TacticFormData;
   index: number;
   errors: Record<string, string[]>;
   onChange: (id: string, field: keyof TacticFormData, value: string) => void;
+  onBatchChange: (id: string, updates: Partial<TacticFormData>) => void;
   onRemove: (id: string) => void;
 }
 
@@ -66,6 +79,7 @@ function FieldCell({
   onChange,
   className,
   groupTint,
+  bgTint,
 }: {
   value: string;
   field: keyof TacticFormData;
@@ -76,6 +90,7 @@ function FieldCell({
   onChange: Props["onChange"];
   className?: string;
   groupTint?: string;
+  bgTint?: string;
 }) {
   const hasError = errors && errors.length > 0;
   return (
@@ -88,6 +103,8 @@ function FieldCell({
         className={`w-full rounded border px-2 py-1.5 text-sm ${
           hasError
             ? "border-unlock-red bg-red-50 text-unlock-barn-red"
+            : bgTint
+            ? `border-unlock-light-gray ${bgTint} text-unlock-black`
             : "border-unlock-light-gray bg-white text-unlock-black"
         } focus:border-unlock-ocean focus:outline-none focus:ring-1 focus:ring-unlock-ocean`}
         title={hasError ? errors.join("; ") : undefined}
@@ -129,6 +146,7 @@ export default function TacticFormRow({
   index,
   errors,
   onChange,
+  onBatchChange,
   onRemove,
 }: Props) {
   const hasAnyError = Object.keys(errors).length > 0;
@@ -160,6 +178,9 @@ export default function TacticFormRow({
 
   const bannerClasses = STATUS_BANNER_CLASSES[inputStatus.overallStatus];
 
+  // Audience size auto-fill: when dmaCode + demoId are set and user hasn't manually overridden
+  const isAutoFilled = data.dmaCode !== "" && data.demoId !== "" && !data.audienceSizeOverridden;
+
   return (
     <>
       <tr className={hasAnyError ? "bg-red-50/50" : index % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
@@ -183,24 +204,70 @@ export default function TacticFormRow({
           onChange={onChange}
           className="min-w-[140px]"
         />
-        <FieldCell
-          value={data.geoName}
-          field="geoName"
-          id={data.id}
-          placeholder="e.g., US National"
-          errors={errors.geoName}
-          onChange={onChange}
-          className="min-w-[110px]"
-        />
-        <FieldCell
-          value={data.audienceName}
-          field="audienceName"
-          id={data.id}
-          placeholder="e.g., Adults 25-54"
-          errors={errors.audienceName}
-          onChange={onChange}
-          className="min-w-[110px]"
-        />
+        {/* DMA Geo dropdown */}
+        <td className="px-2 py-1.5 min-w-[160px]">
+          <SearchableSelect
+            options={DMA_OPTIONS}
+            value={data.dmaCode}
+            placeholder="Select DMA..."
+            hasError={!!errors.geoName?.length}
+            onSelect={(code) => {
+              const dma = DMA_LIST.find((d) => d.code === code);
+              const updates: Partial<TacticFormData> = {
+                dmaCode: code,
+                geoName: dma?.name ?? "",
+              };
+              // Auto-fill audience size if demo is also set and not overridden
+              if (data.demoId && !data.audienceSizeOverridden) {
+                const size = lookupAudienceSize(code, data.demoId);
+                if (size != null) {
+                  updates.audienceSize = String(size);
+                }
+              }
+              onBatchChange(data.id, updates);
+            }}
+          />
+          {errors.geoName?.length > 0 && (
+            <p className="mt-0.5 text-xs text-unlock-red leading-tight">{errors.geoName[0]}</p>
+          )}
+        </td>
+        {/* Demo audience dropdown */}
+        <td className="px-2 py-1.5 min-w-[130px]">
+          <select
+            value={data.demoId}
+            onChange={(e) => {
+              const demoId = e.target.value;
+              const demo = DEMO_LIST.find((d) => d.id === demoId);
+              const updates: Partial<TacticFormData> = {
+                demoId,
+                audienceName: demo?.label ?? "",
+              };
+              // Auto-fill audience size if DMA is also set and not overridden
+              if (data.dmaCode && !data.audienceSizeOverridden) {
+                const size = lookupAudienceSize(data.dmaCode, demoId);
+                if (size != null) {
+                  updates.audienceSize = String(size);
+                }
+              }
+              onBatchChange(data.id, updates);
+            }}
+            className={`w-full rounded border px-2 py-1.5 text-sm ${
+              errors.audienceName?.length
+                ? "border-unlock-red bg-red-50 text-unlock-barn-red"
+                : "border-unlock-light-gray bg-white text-unlock-black"
+            } focus:border-unlock-ocean focus:outline-none focus:ring-1 focus:ring-unlock-ocean`}
+          >
+            <option value="">Select demo...</option>
+            {DEMO_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+          {errors.audienceName?.length > 0 && (
+            <p className="mt-0.5 text-xs text-unlock-red leading-tight">{errors.audienceName[0]}</p>
+          )}
+        </td>
         <FieldCell
           value={data.audienceSize}
           field="audienceSize"
@@ -208,8 +275,15 @@ export default function TacticFormRow({
           placeholder="e.g., 125000000"
           type="number"
           errors={errors.audienceSize}
-          onChange={onChange}
+          onChange={(id, field, value) => {
+            // Manual edit overrides auto-fill
+            onChange(id, field, value);
+            if (!data.audienceSizeOverridden) {
+              onChange(id, "audienceSizeOverridden" as keyof TacticFormData, "true");
+            }
+          }}
           className="min-w-[120px]"
+          bgTint={isAutoFilled ? "bg-unlock-ice" : undefined}
         />
         <td className="px-2 py-1.5">
           <select

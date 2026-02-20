@@ -33,6 +33,9 @@ function tacticFormFromInput(t: TacticInput): TacticFormData {
     cpm: t.cpm != null ? String(t.cpm) : "",
     reachPercent: t.reachPercent != null ? String(t.reachPercent) : "",
     frequency: t.frequency != null ? String(t.frequency) : "",
+    dmaCode: "",
+    demoId: "",
+    audienceSizeOverridden: false,
   };
 }
 
@@ -88,6 +91,20 @@ export default function HomePage() {
         prev.map((t) => (t.id === id ? { ...t, [field]: value } : t))
       );
       // Clear errors for this row on edit
+      setFieldErrors((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    },
+    []
+  );
+
+  const handleBatchChange = useCallback(
+    (id: string, updates: Partial<TacticFormData>) => {
+      setTactics((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
+      );
       setFieldErrors((prev) => {
         const next = { ...prev };
         delete next[id];
@@ -278,6 +295,9 @@ export default function HomePage() {
               cpm: t.cpm != null ? String(t.cpm) : "",
               reachPercent: t.reachPercent != null ? String(t.reachPercent) : "",
               frequency: t.frequency != null ? String(t.frequency) : "",
+              dmaCode: typeof t.dmaCode === "string" ? t.dmaCode : "",
+              demoId: typeof t.demoId === "string" ? t.demoId : "",
+              audienceSizeOverridden: typeof t.audienceSizeOverridden === "boolean" ? t.audienceSizeOverridden : false,
             };
             return form;
           }
@@ -403,6 +423,7 @@ export default function HomePage() {
                 index={i}
                 errors={fieldErrors[t.id] ?? {}}
                 onChange={handleFieldChange}
+                onBatchChange={handleBatchChange}
                 onRemove={handleRemove}
               />
             ))}
