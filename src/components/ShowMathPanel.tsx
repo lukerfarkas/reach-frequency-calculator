@@ -30,8 +30,13 @@ export default function ShowMathPanel() {
         <div className="border-t border-unlock-light-gray px-4 py-4 text-sm text-unlock-dark-gray space-y-4">
           <section>
             <h4 className="font-semibold mb-1 text-unlock-black">Basic Conversions</h4>
+            <p className="mb-1 text-xs text-unlock-medium-gray">
+              Enter any two of Net Cost, Impressions, or CPM — the third is calculated automatically.
+            </p>
             <ul className="list-disc list-inside space-y-1 text-unlock-medium-gray font-mono text-xs">
-              <li>Gross Impressions = (Cost / CPM) × 1,000</li>
+              <li>Gross Impressions = (Net Cost / CPM) × 1,000</li>
+              <li>Net Cost = (CPM × Impressions) / 1,000</li>
+              <li>CPM = (Net Cost / Impressions) × 1,000</li>
               <li>GRPs = (Gross Impressions / Target Population) × 100</li>
               <li>GRPs = Reach% × Frequency</li>
               <li>Average Frequency = GRPs / Reach%</li>
@@ -51,15 +56,19 @@ export default function ShowMathPanel() {
           </section>
 
           <section>
-            <h4 className="font-semibold mb-1 text-unlock-black">TV Reach Curve (Estimate)</h4>
+            <h4 className="font-semibold mb-1 text-unlock-black">TV Reach Curve (Calibrated Model)</h4>
             <ul className="list-disc list-inside space-y-1 text-unlock-medium-gray font-mono text-xs">
-              <li>Reach% = 100 × (1 − e<sup>−k × GRPs / 100</sup>)</li>
-              <li>k = 1.0 for general TV</li>
-              <li>Frequency = GRPs / Reach%</li>
+              <li>rawReach = maxReach × (1 − e<sup>−k × GRPs / 100</sup>)</li>
+              <li>duplication = base + growth × (1 − e<sup>−GRPs / halfLife</sup>)</li>
+              <li>adjustedReach% = rawReach × (1 − duplication) × 100</li>
+              <li>Frequency = GRPs / adjustedReach%</li>
+              <li>Eff. 3+ λ = Frequency (not naive GRPs/100)</li>
             </ul>
             <p className="mt-1 text-xs text-unlock-medium-gray">
-              This is an exponential saturation approximation. Actual TV reach curves
-              vary by daypart, network mix, and audience composition. Auto-applied
+              Defaults: maxReach = 0.90, k = 0.70, duplicationBase = 0.03,
+              duplicationGrowth = 0.12, halfLife = 200 GRPs. This model caps reach
+              below 100% and increases frequency via duplication adjustment,
+              better approximating observed TV planning outputs. Auto-applied
               when channel is TV and no Reach%/Frequency is provided.
             </p>
           </section>
@@ -85,6 +94,9 @@ export default function ShowMathPanel() {
               <li>Total GRPs = Σ(tactic GRPs)</li>
               <li>Combined Avg Frequency = Total GRPs / Combined Reach%</li>
               <li>Combined Eff. 3+ uses Poisson on Total GRPs</li>
+              <li>Total Net Cost = Σ(tactic Net Costs)</li>
+              <li>Total Gross Impressions = Σ(tactic Gross Impressions)</li>
+              <li>Blended CPM = (Total Net Cost / Total Gross Impressions) × 1,000</li>
             </ul>
           </section>
         </div>

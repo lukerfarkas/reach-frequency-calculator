@@ -71,8 +71,20 @@ export interface EffectiveReachResult {
  */
 export function effectiveReach3Plus(grps: number): EffectiveReachResult {
   if (grps < 0) throw new Error("GRPs cannot be negative");
+  return effectiveReach3PlusFromLambda(grps / 100);
+}
 
-  const lambda = grps / 100;
+/**
+ * Effective 3+ reach from a pre-computed lambda (average frequency).
+ *
+ * This variant accepts lambda directly, allowing the TV calibrated model
+ * to pass in the adjusted average frequency (GRPs / adjustedReach%) rather
+ * than the naive GRPs / 100. This keeps effective 3+ internally consistent
+ * with models that adjust reach downward (increasing concentration).
+ */
+export function effectiveReach3PlusFromLambda(lambda: number): EffectiveReachResult {
+  if (lambda < 0) throw new Error("Lambda cannot be negative");
+
   const expNegLambda = Math.exp(-lambda);
 
   const p0 = expNegLambda;
@@ -188,6 +200,11 @@ export interface PlanSummaryResult {
   combinedAvgFrequency: number;
   effective3Plus: EffectiveReachResult;
   combinedReachSteps: CombinedReachStep[];
+
+  // Cost / impressions rollup
+  totalNetCost: number;
+  totalGrossImpressions: number;
+  blendedCPM: number | null; // null when totalGrossImpressions is 0
 }
 
 export function computePlanSummary(
@@ -195,6 +212,8 @@ export function computePlanSummary(
     tacticName: string;
     reachPercent: number;
     grps: number;
+    inputCost?: number | null;
+    grossImpressions?: number | null;
   }[],
   audienceSize: number
 ): PlanSummaryResult {
@@ -214,6 +233,17 @@ export function computePlanSummary(
   // Effective 3+ on total GRPs
   const eff3Plus = effectiveReach3Plus(totalGRPs);
 
+  // Cost / impressions rollup
+  const totalNetCost = tactics.reduce((sum, t) => sum + (t.inputCost ?? 0), 0);
+  const totalGrossImpressions = tactics.reduce(
+    (sum, t) => sum + (t.grossImpressions ?? 0),
+    0
+  );
+  const blendedCPM =
+    totalGrossImpressions > 0
+      ? (totalNetCost / totalGrossImpressions) * 1000
+      : null;
+
   return {
     totalGRPs,
     combinedReachPercent,
@@ -221,5 +251,8 @@ export function computePlanSummary(
     combinedAvgFrequency,
     effective3Plus: eff3Plus,
     combinedReachSteps: combined.steps,
+    totalNetCost,
+    totalGrossImpressions,
+    blendedCPM,
   };
 }

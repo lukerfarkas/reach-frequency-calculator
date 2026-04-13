@@ -19,20 +19,20 @@ describe("analyzeRowInputs", () => {
     const result = analyzeRowInputs(empty);
     expect(result.overallStatus).toBe("insufficient");
     expect(result.hasStartedInput).toBe(false);
-    expect(result.guidanceMessage).toContain("Start with what you know");
+    expect(result.guidanceMessage).toContain("Enter any two of Net Cost, Impressions, or CPM");
   });
 
   it("only Cost filled → insufficient, asks for CPM", () => {
     const result = analyzeRowInputs({ ...empty, cost: "5000000" });
     expect(result.overallStatus).toBe("insufficient");
     expect(result.guidanceMessage).toContain("CPM");
-    expect(result.guidanceMessage).toContain("Almost there");
+    expect(result.guidanceMessage).toContain("any two");
   });
 
-  it("only CPM filled → insufficient, asks for Cost", () => {
+  it("only CPM filled → insufficient, asks for Net Cost", () => {
     const result = analyzeRowInputs({ ...empty, cpm: "25" });
     expect(result.overallStatus).toBe("insufficient");
-    expect(result.guidanceMessage).toContain("Cost");
+    expect(result.guidanceMessage).toContain("Net Cost");
   });
 
   it("only Frequency filled → insufficient", () => {
@@ -81,7 +81,7 @@ describe("analyzeRowInputs", () => {
   it("Cost + CPM → partial, coaches to add breakdown", () => {
     const result = analyzeRowInputs({ ...empty, cost: "5000000", cpm: "25" });
     expect(result.overallStatus).toBe("partial");
-    expect(result.guidanceMessage).toContain("Cost + CPM locked in");
+    expect(result.guidanceMessage).toContain("Net Cost + CPM locked in");
   });
 
   it("Reach% only → partial, coaches next steps", () => {
@@ -199,6 +199,7 @@ describe("analyzeRowInputs", () => {
   it("TV + Cost+CPM → ready (reach curve available)", () => {
     const result = analyzeRowInputs({ ...empty, cost: "5000000", cpm: "25", channel: "TV" });
     expect(result.overallStatus).toBe("ready");
+    expect(result.guidanceMessage).toContain("Net Cost + CPM locked in");
     expect(result.guidanceMessage).toContain("auto-estimated");
   });
 

@@ -13,6 +13,9 @@ import {
   type Sex,
 } from "@/lib/data/dmaAudienceData";
 
+/** Tracks which of the cost/impressions/CPM triad the user last edited. */
+export type LastCostField = "cost" | "cpm" | "grossImpressions" | null;
+
 export interface TacticFormData {
   id: string;
   tacticName: string;
@@ -32,6 +35,8 @@ export interface TacticFormData {
   demoAgeMax: number;
   demoIsHouseholds: boolean;
   audienceSizeOverridden: boolean;
+  /** Tracks the last-edited field in the Net Cost / Impressions / CPM triad. */
+  lastCostField: LastCostField;
 }
 
 export function emptyTacticForm(id?: string): TacticFormData {
@@ -54,6 +59,7 @@ export function emptyTacticForm(id?: string): TacticFormData {
     demoAgeMax: 999,
     demoIsHouseholds: false,
     audienceSizeOverridden: false,
+    lastCostField: null,
   };
 }
 
@@ -152,6 +158,88 @@ function useFlashOnChange(value: string): boolean {
   return flashing;
 }
 
+// ---------------------------------------------------------------------------
+// Bidirectional Net Cost / Impressions / CPM auto-calculation
+// ---------------------------------------------------------------------------
+
+/** Safely parse a string to a positive finite number, or null. */
+function safePositive(value: string): number | null {
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed);
+  if (!isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+/** Same as safePositive but allows zero. */
+function safeNonNeg(value: string): number | null {
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  const n = Number(trimmed);
+  if (!isFinite(n) || n < 0) return null;
+  return n;
+}
+
+/**
+ * Given the current values + which field was just edited, derive the third
+ * field in the Net Cost / Impressions / CPM triad.
+ *
+ * Returns a partial update to apply via onBatchChange, or null if no
+ * derivation is possible (insufficient valid inputs).
+ */
+function deriveCostTriad(
+  cost: string,
+  cpm: string,
+  impressions: string,
+  editedField: "cost" | "cpm" | "grossImpressions",
+  prevLastField: LastCostField,
+): Partial<TacticFormData> | null {
+  const costVal = safeNonNeg(cost);
+  const cpmVal = safePositive(cpm);
+  const impVal = safeNonNeg(impressions);
+
+  // Determine which field to derive. The two "known" fields are
+  // the one just edited + the most recent other field the user set.
+  // The third field is the one we derive.
+  if (editedField === "cost") {
+    if (costVal != null && cpmVal != null) {
+      // Derive impressions: (cost / cpm) * 1000
+      const derived = (costVal / cpmVal) * 1000;
+      return { grossImpressions: String(Math.round(derived)), lastCostField: "cost" };
+    }
+    if (costVal != null && impVal != null && impVal > 0) {
+      // Derive CPM: (cost / impressions) * 1000
+      const derived = (costVal / impVal) * 1000;
+      return { cpm: derived.toFixed(2), lastCostField: "cost" };
+    }
+  } else if (editedField === "cpm") {
+    if (cpmVal != null && costVal != null) {
+      // Derive impressions
+      const derived = (costVal / cpmVal) * 1000;
+      return { grossImpressions: String(Math.round(derived)), lastCostField: "cpm" };
+    }
+    if (cpmVal != null && impVal != null) {
+      // Derive cost
+      const derived = (cpmVal * impVal) / 1000;
+      return { cost: derived.toFixed(2), lastCostField: "cpm" };
+    }
+  } else if (editedField === "grossImpressions") {
+    if (impVal != null && cpmVal != null) {
+      // Derive cost
+      const derived = (cpmVal * impVal) / 1000;
+      return { cost: derived.toFixed(2), lastCostField: "grossImpressions" };
+    }
+    if (impVal != null && impVal > 0 && costVal != null) {
+      // Derive CPM
+      const derived = (costVal / impVal) * 1000;
+      return { cpm: derived.toFixed(2), lastCostField: "grossImpressions" };
+    }
+  }
+
+  // Not enough valid inputs — just track which field was edited
+  return { lastCostField: editedField };
+}
+
 /** Compute audience size + label from current demo settings and DMA. */
 function computeDemoUpdates(
   dmaCode: string,
@@ -206,14 +294,30 @@ export default function TacticFormRow({
 
   const isFlashing = useFlashOnChange(inputStatus.guidanceMessage);
 
-  const costCpmTint = inputStatus.activeGroups.includes("volume_costcpm")
-    ? "bg-unlock-ice/40"
-    : "";
+  const costCpmActive = inputStatus.activeGroups.includes("volume_costcpm");
+  const costCpmTint = costCpmActive ? "bg-unlock-ice/40" : "";
   const reachFreqTint = inputStatus.activeGroups.includes("breakdown_reachfreq")
     ? "bg-unlock-salmon/20"
     : "";
 
   const bannerClasses = STATUS_BANNER_CLASSES[inputStatus.overallStatus];
+
+  // Handler for Net Cost / CPM / Impressions fields that triggers auto-calculation
+  const handleCostTriadChange = (id: string, field: keyof TacticFormData, value: string) => {
+    // First, apply the user's edit
+    onChange(id, field, value);
+
+    // Then derive the third field
+    const editedField = field as "cost" | "cpm" | "grossImpressions";
+    const currentCost = field === "cost" ? value : data.cost;
+    const currentCpm = field === "cpm" ? value : data.cpm;
+    const currentImp = field === "grossImpressions" ? value : data.grossImpressions;
+
+    const derived = deriveCostTriad(currentCost, currentCpm, currentImp, editedField, data.lastCostField);
+    if (derived) {
+      onBatchChange(id, derived);
+    }
+  };
 
   // Is audience size auto-filled (DMA set + demo configured + not manually overridden)?
   const hasDemoConfig = data.demoIsHouseholds || data.dmaCode !== "";
@@ -348,7 +452,7 @@ export default function TacticFormRow({
           placeholder="$"
           type="number"
           errors={errors.cost}
-          onChange={onChange}
+          onChange={handleCostTriadChange}
           className="min-w-[90px]"
           groupTint={costCpmTint}
         />
@@ -359,7 +463,7 @@ export default function TacticFormRow({
           placeholder="$"
           type="number"
           errors={errors.cpm}
-          onChange={onChange}
+          onChange={handleCostTriadChange}
           className="min-w-[70px]"
           groupTint={costCpmTint}
         />
@@ -370,7 +474,7 @@ export default function TacticFormRow({
           placeholder="#"
           type="number"
           errors={errors.grossImpressions}
-          onChange={onChange}
+          onChange={handleCostTriadChange}
           className="min-w-[100px]"
         />
         <FieldCell

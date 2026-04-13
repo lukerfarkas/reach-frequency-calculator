@@ -39,6 +39,7 @@ function tacticFormFromInput(t: TacticInput): TacticFormData {
     demoAgeMax: 999,
     demoIsHouseholds: false,
     audienceSizeOverridden: false,
+    lastCostField: null,
   };
 }
 
@@ -200,48 +201,57 @@ export default function HomePage() {
 
     setResolvedTactics(resolved);
 
-    // Plan summary for selected tactics
-    const selectedResolved = resolved.filter((r) =>
-      selectedIds.has(tactics.find((t) => t.tacticName === r.tacticName)?.id ?? "")
-    );
+    // Auto-select all tactics for the full program rollup
+    const allIds = new Set(validInputs.map((t) => t.id));
+    setSelectedIds(allIds);
 
-    // Match by id more reliably
-    const selectedResolvedById = resolved.filter((_r, i) =>
-      selectedIds.has(validInputs[i]?.id ?? "")
-    );
-
-    if (selectedResolvedById.length >= 2) {
+    // Plan summary for all resolved tactics
+    if (resolved.length >= 2) {
       // Check geo/audience guardrail
-      const combineCheck = validateCombinableGroup(selectedResolvedById);
+      const combineCheck = validateCombinableGroup(resolved);
+      const withReach = resolved.filter(
+        (r) => r.reachPercent != null && r.grps != null
+      );
+      const canCombineReach = combineCheck.valid && withReach.length === resolved.length;
+
       if (!combineCheck.valid) {
         setPlanError(combineCheck.error ?? "Cannot combine these tactics.");
-        setPlanSummary(null);
-      } else {
-        // Check all selected have reach%
-        const withReach = selectedResolvedById.filter(
-          (r) => r.reachPercent != null && r.grps != null
+      } else if (!canCombineReach) {
+        setPlanError(
+          "Some tactics do not have Reach% or GRPs computed. Cannot combine reach."
         );
-        if (withReach.length < selectedResolvedById.length) {
-          setPlanError(
-            "Some selected tactics do not have Reach% or GRPs computed. Cannot combine."
-          );
-          setPlanSummary(null);
-        } else {
-          setPlanError(null);
-          const summary = computePlanSummary(
-            withReach.map((r) => ({
-              tacticName: r.tacticName,
-              reachPercent: r.reachPercent!,
-              grps: r.grps!,
-            })),
-            withReach[0].audienceSize
-          );
-          setPlanSummary(summary);
-        }
+      } else {
+        setPlanError(null);
       }
-    } else if (selectedResolvedById.length === 1) {
-      setPlanError(null);
-      setPlanSummary(null);
+
+      if (canCombineReach) {
+        // Full summary with reach + cost rollup
+        const summary = computePlanSummary(
+          withReach.map((r) => ({
+            tacticName: r.tacticName,
+            reachPercent: r.reachPercent!,
+            grps: r.grps!,
+            inputCost: r.inputCost,
+            grossImpressions: r.grossImpressions,
+          })),
+          withReach[0].audienceSize
+        );
+        setPlanSummary(summary);
+      } else {
+        // Cost-only rollup: use dummy reach values so computePlanSummary works,
+        // then we display only the cost section in the panel.
+        const summary = computePlanSummary(
+          resolved.map((r) => ({
+            tacticName: r.tacticName,
+            reachPercent: r.reachPercent ?? 0,
+            grps: r.grps ?? 0,
+            inputCost: r.inputCost,
+            grossImpressions: r.grossImpressions,
+          })),
+          resolved[0].audienceSize
+        );
+        setPlanSummary(summary);
+      }
     } else {
       setPlanError(null);
       setPlanSummary(null);
@@ -304,6 +314,7 @@ export default function HomePage() {
               demoAgeMax: typeof t.demoAgeMax === "number" ? t.demoAgeMax : 999,
               demoIsHouseholds: typeof t.demoIsHouseholds === "boolean" ? t.demoIsHouseholds : false,
               audienceSizeOverridden: typeof t.audienceSizeOverridden === "boolean" ? t.audienceSizeOverridden : false,
+              lastCostField: null,
             };
             return form;
           }
@@ -347,8 +358,8 @@ export default function HomePage() {
             Reach &amp; Frequency Calculator
           </h1>
           <p className="mt-0.5 text-sm text-unlock-medium-gray">
-            Enter media tactics, calculate reach/frequency/GRPs, and combine across
-            tactics with deduplication.
+            Enter media tactics, calculate reach/frequency/GRPs/CPM, and combine
+            across tactics with deduplication.
           </p>
         </div>
       </header>
@@ -396,7 +407,7 @@ export default function HomePage() {
             <tr className="bg-gray-50 text-[10px] text-unlock-medium-gray uppercase tracking-wider">
               <th colSpan={6}></th>
               <th colSpan={2} className="px-2 pt-1.5 pb-0 text-center text-unlock-ocean border-l-2 border-l-unlock-sky">
-                Cost + CPM
+                Net Cost + CPM
               </th>
               <th colSpan={2}></th>
               <th colSpan={2} className="px-2 pt-1.5 pb-0 text-center text-unlock-barn-red border-l-2 border-l-unlock-salmon">
@@ -412,7 +423,7 @@ export default function HomePage() {
               <th className="px-2 py-2">Audience</th>
               <th className="px-2 py-2">Audience Size</th>
               <th className="px-2 py-2">Channel</th>
-              <th className="px-2 py-2 border-l-2 border-l-unlock-sky">Cost ($)</th>
+              <th className="px-2 py-2 border-l-2 border-l-unlock-sky">Net Cost ($)</th>
               <th className="px-2 py-2">CPM ($)</th>
               <th className="px-2 py-2">Gross Impr.</th>
               <th className="px-2 py-2">GRPs</th>
@@ -508,21 +519,17 @@ export default function HomePage() {
             ))}
           </div>
 
-          {/* Plan Error */}
-          {planError && (
-            <div className="rounded-lg border border-unlock-salmon bg-red-50 p-4 text-sm text-unlock-barn-red">
-              <strong>Cannot combine tactics:</strong> {planError}
-            </div>
-          )}
-
           {/* Plan Summary */}
           {planSummary && (
             <div className="space-y-4">
               <PlanSummaryPanel
                 summary={planSummary}
                 audienceSize={resolvedTactics[0]?.audienceSize ?? 0}
+                reachError={planError}
               />
-              <CombinedReachSteps steps={planSummary.combinedReachSteps} />
+              {!planError && (
+                <CombinedReachSteps steps={planSummary.combinedReachSteps} />
+              )}
             </div>
           )}
         </div>

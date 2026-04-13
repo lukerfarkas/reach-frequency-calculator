@@ -20,9 +20,15 @@ import {
   impressionsFromGRPs,
   reachNumber,
   effectiveReach3Plus,
+  effectiveReach3PlusFromLambda,
   type EffectiveReachResult,
 } from "./calculations";
-import { estimateReachPercent, getReachCurveK } from "./reachCurve";
+import {
+  estimateTVReach,
+  estimateReachPercent,
+  getReachCurveK,
+  type TVReachResult,
+} from "./reachCurve";
 
 export interface TacticInputs {
   tacticName: string;
@@ -174,14 +180,27 @@ export function resolveTactic(input: TacticInputs): ResolvedTactic {
       // Have GRPs but no reach or frequency — try reach curve if available
       const curveK = getReachCurveK(input.channel);
       if (curveK != null && grps > 0) {
-        const estimated = estimateReachPercent(grps, curveK);
-        result.reachPercent = estimated;
-        result.frequency = averageFrequency(grps, estimated);
-        result.reachPercentEstimated = true;
-        result.derivationPath += " → Reach% estimated via reach curve";
-        result.warnings.push(
-          `Reach% (${estimated.toFixed(1)}%) was auto-estimated using a ${input.channel} reach curve. This is an approximation — actual reach varies by daypart, network mix, and audience.`
-        );
+        if (input.channel === "TV") {
+          // Use the calibrated TV reach model with ceiling and duplication
+          const tvResult: TVReachResult = estimateTVReach(grps);
+          result.reachPercent = tvResult.reachPercent;
+          result.frequency = tvResult.frequency;
+          result.reachPercentEstimated = true;
+          result.derivationPath += " → Reach% estimated via calibrated TV reach curve";
+          result.warnings.push(
+            `Reach% (${tvResult.reachPercent.toFixed(1)}%) was auto-estimated using a calibrated TV reach model (ceiling: ${(tvResult.calibration.maxReach * 100).toFixed(0)}%, duplication: ${(tvResult.duplicationPenalty * 100).toFixed(1)}%). Actual reach varies by daypart, network mix, and audience.`
+          );
+        } else {
+          // Non-TV channels with reach curves (future): use legacy formula
+          const estimated = estimateReachPercent(grps, curveK);
+          result.reachPercent = estimated;
+          result.frequency = averageFrequency(grps, estimated);
+          result.reachPercentEstimated = true;
+          result.derivationPath += " → Reach% estimated via reach curve";
+          result.warnings.push(
+            `Reach% (${estimated.toFixed(1)}%) was auto-estimated using a ${input.channel} reach curve. This is an approximation — actual reach varies by daypart, network mix, and audience.`
+          );
+        }
       } else {
         result.warnings.push(
           "GRPs computed but Reach% and Frequency cannot be individually determined without at least one of them being provided."
@@ -203,7 +222,15 @@ export function resolveTactic(input: TacticInputs): ResolvedTactic {
     }
 
     // Step 3: Effective 3+ reach
-    result.effective3Plus = effectiveReach3Plus(grps);
+    // For TV with estimated reach, use the calibrated effective lambda
+    // (based on actual average frequency) rather than naive GRPs/100.
+    // This ensures effective 3+ reflects the higher-frequency reality
+    // of the duplication-adjusted model.
+    if (input.channel === "TV" && result.reachPercentEstimated && result.frequency != null) {
+      result.effective3Plus = effectiveReach3PlusFromLambda(result.frequency);
+    } else {
+      result.effective3Plus = effectiveReach3Plus(grps);
+    }
 
     result.isFullyResolved =
       result.grps != null &&

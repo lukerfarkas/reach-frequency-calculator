@@ -84,7 +84,7 @@ export default function TacticResultCard({ tactic }: Props) {
       {(tactic.inputCost != null || tactic.inputCPM != null) && (
         <div className="mb-3 flex gap-4 text-xs text-unlock-medium-gray border-b border-unlock-light-gray pb-2">
           {tactic.inputCost != null && (
-            <span>Cost: {fmtCurrency(tactic.inputCost)}</span>
+            <span>Net Cost: {fmtCurrency(tactic.inputCost)}</span>
           )}
           {tactic.inputCPM != null && (
             <span>CPM: {fmtCurrency(tactic.inputCPM)}</span>

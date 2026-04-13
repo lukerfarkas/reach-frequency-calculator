@@ -244,4 +244,69 @@ describe("computePlanSummary", () => {
     // Effective 3+ with λ=3
     expect(summary.effective3Plus.effective3PlusPercent).toBeCloseTo(57.68, 1);
   });
+
+  // -------------------------------------------------------------------------
+  // Cost / Impressions Rollup
+  // -------------------------------------------------------------------------
+
+  it("computes cost rollup with cost and impressions data", () => {
+    const summary = computePlanSummary(
+      [
+        { tacticName: "A", reachPercent: 60, grps: 180, inputCost: 5_000_000, grossImpressions: 200_000_000 },
+        { tacticName: "B", reachPercent: 30, grps: 120, inputCost: 1_000_000, grossImpressions: 80_000_000 },
+      ],
+      125_000_000
+    );
+
+    expect(summary.totalNetCost).toBe(6_000_000);
+    expect(summary.totalGrossImpressions).toBe(280_000_000);
+    // Blended CPM = 6M / 280M * 1000 ≈ $21.43
+    expect(summary.blendedCPM).toBeCloseTo(21.4286, 2);
+  });
+
+  it("treats null cost as 0 in rollup sums", () => {
+    const summary = computePlanSummary(
+      [
+        { tacticName: "A", reachPercent: 60, grps: 180, inputCost: 5_000_000, grossImpressions: 200_000_000 },
+        { tacticName: "B", reachPercent: 30, grps: 120, inputCost: null, grossImpressions: 80_000_000 },
+      ],
+      125_000_000
+    );
+
+    expect(summary.totalNetCost).toBe(5_000_000);
+    expect(summary.totalGrossImpressions).toBe(280_000_000);
+    expect(summary.blendedCPM).toBeCloseTo(17.8571, 2);
+  });
+
+  it("returns null blendedCPM when total impressions is 0", () => {
+    const summary = computePlanSummary(
+      [
+        { tacticName: "A", reachPercent: 60, grps: 180, inputCost: 5_000_000, grossImpressions: null },
+        { tacticName: "B", reachPercent: 30, grps: 120, inputCost: 1_000_000, grossImpressions: null },
+      ],
+      125_000_000
+    );
+
+    expect(summary.totalNetCost).toBe(6_000_000);
+    expect(summary.totalGrossImpressions).toBe(0);
+    expect(summary.blendedCPM).toBeNull();
+  });
+
+  it("backward compatible: works without cost fields", () => {
+    const summary = computePlanSummary(
+      [
+        { tacticName: "A", reachPercent: 60, grps: 180 },
+        { tacticName: "B", reachPercent: 30, grps: 120 },
+      ],
+      125_000_000
+    );
+
+    // Cost fields default to 0
+    expect(summary.totalNetCost).toBe(0);
+    expect(summary.totalGrossImpressions).toBe(0);
+    expect(summary.blendedCPM).toBeNull();
+    // Existing reach metrics still work
+    expect(summary.totalGRPs).toBe(300);
+    expect(summary.combinedReachPercent).toBeCloseTo(72, 5);
+  });
 });

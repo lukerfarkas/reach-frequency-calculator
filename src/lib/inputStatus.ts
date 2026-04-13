@@ -105,7 +105,7 @@ export function analyzeRowInputs(form: {
           "Got your impressions for TV. Reach% will be auto-estimated, or add your own.";
       } else {
         guidanceMessage =
-          "Cost + CPM locked in for TV. Reach% will be auto-estimated, or add your own.";
+          "Net Cost + CPM locked in for TV. Reach% will be auto-estimated, or add your own.";
       }
       overallStatus = "ready";
     } else {
@@ -118,7 +118,7 @@ export function analyzeRowInputs(form: {
           "Got your impressions. Now add Reach% or Frequency to complete the picture.";
       } else {
         guidanceMessage =
-          "Cost + CPM locked in. Now add Reach% or Frequency and you're done.";
+          "Net Cost + CPM locked in. Now add Reach% or Frequency and you're done.";
       }
       overallStatus = "partial";
     }
@@ -126,23 +126,23 @@ export function analyzeRowInputs(form: {
     // Path E: Reach% only — can compute reach# but nothing else
     overallStatus = "partial";
     guidanceMessage =
-      "Have your Reach%. Add Frequency to complete the pair, or enter GRPs/Impressions/Cost+CPM for volume.";
+      "Have your Reach%. Add Frequency to complete the pair, or enter GRPs/Impressions/Net Cost+CPM for volume.";
   } else if (has.frequency && !has.reachPercent && !anyVolumePath) {
     overallStatus = "insufficient";
     guidanceMessage =
-      "Frequency alone isn't enough. Pair it with Reach%, or enter GRPs/Impressions/Cost+CPM.";
+      "Frequency alone isn't enough. Pair it with Reach%, or enter GRPs/Impressions/Net Cost+CPM.";
   } else if (pathCPartial) {
-    const missing = !has.cost ? "Cost" : "CPM";
+    const missing = !has.cost ? "Net Cost" : "CPM";
     overallStatus = "insufficient";
-    guidanceMessage = `Almost there — add ${missing} to complete the Cost + CPM pair.`;
+    guidanceMessage = `Almost there — enter any two of Net Cost, Impressions, or CPM and the third will be calculated automatically. Add ${missing} to continue.`;
   } else if (!hasStartedInput) {
     overallStatus = "insufficient";
     guidanceMessage =
-      "Start with what you know: Cost+CPM, GRPs, Impressions, or Reach%+Frequency.";
+      "Enter any two of Net Cost, Impressions, or CPM — the third is calculated automatically. Or start with GRPs or Reach%+Frequency.";
   } else {
     overallStatus = "insufficient";
     guidanceMessage =
-      "Start with what you know: Cost+CPM, GRPs, Impressions, or Reach%+Frequency.";
+      "Enter any two of Net Cost, Impressions, or CPM — the third is calculated automatically. Or start with GRPs or Reach%+Frequency.";
   }
 
   return {
