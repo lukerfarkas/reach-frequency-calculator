@@ -58,18 +58,17 @@ export default function ShowMathPanel() {
           <section>
             <h4 className="font-semibold mb-1 text-unlock-black">TV Reach Curve (Calibrated Model)</h4>
             <ul className="list-disc list-inside space-y-1 text-unlock-medium-gray font-mono text-xs">
-              <li>rawReach = maxReach × (1 − e<sup>−k × GRPs / 100</sup>)</li>
+              <li>rawReach = maxReach × (1 − e<sup>−k × GRPs</sup>)</li>
               <li>duplication = base + growth × (1 − e<sup>−GRPs / halfLife</sup>)</li>
               <li>adjustedReach% = rawReach × (1 − duplication) × 100</li>
               <li>Frequency = GRPs / adjustedReach%</li>
               <li>Eff. 3+ λ = Frequency (not naive GRPs/100)</li>
             </ul>
             <p className="mt-1 text-xs text-unlock-medium-gray">
-              Defaults: maxReach = 0.90, k = 0.70, duplicationBase = 0.03,
-              duplicationGrowth = 0.12, halfLife = 200 GRPs. This model caps reach
-              below 100% and increases frequency via duplication adjustment,
-              better approximating observed TV planning outputs. Auto-applied
-              when channel is TV and no Reach%/Frequency is provided.
+              Defaults: maxReach = 0.93, k = 0.0082, duplicationBase = 0.015,
+              duplicationGrowth = 0.08, halfLife = 275 GRPs. Most shaping comes from
+              the curve and ceiling; duplication is a light correction (~4–9%).
+              Auto-applied when channel is TV and no Reach%/Frequency is provided.
             </p>
           </section>
 

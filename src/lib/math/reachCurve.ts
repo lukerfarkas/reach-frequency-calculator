@@ -14,15 +14,16 @@
  *
  * ## Current Model
  *
- * We now use a ceiling-capped exponential with a duplication adjustment:
+ * We now use a ceiling-capped exponential with a light duplication adjustment:
  *
- *   rawReach = maxReach × (1 − e^(−k × GRPs / 100))
+ *   rawReach = maxReach × (1 − e^(−k × GRPs))
  *   duplicationPenalty = duplicationBase + duplicationGrowth × (1 − e^(−GRPs / duplicationHalfLife))
  *   adjustedReach = rawReach × (1 − duplicationPenalty)
  *
- * The duplication penalty increases with GRPs, modeling the real-world
- * effect where incremental impressions increasingly hit already-reached
- * viewers rather than new ones.
+ * Most of the reach shaping comes from the exponential curve and ceiling.
+ * The duplication penalty is intentionally light (~4–9% at typical GRP
+ * levels), nudging outputs toward more realistic splits without dominating
+ * the model at low-to-mid GRPs.
  *
  * Frequency is then derived as: frequency = GRPs / adjustedReach
  *
@@ -50,48 +51,61 @@
  * TV reach model calibration parameters.
  *
  * Adjust these to align with observed Citrix behavior:
- *   - maxReach: the asymptotic ceiling (Citrix appears to use ~0.85–0.92)
- *   - k: curve steepness (higher = faster initial reach growth)
+ *   - maxReach: the asymptotic ceiling (Citrix appears to use ~0.90–0.95)
+ *   - k: curve steepness applied directly to GRPs (higher = faster initial reach)
  *   - duplicationBase: minimum duplication penalty even at low GRPs
- *   - duplicationGrowth: additional duplication that builds with GRPs
+ *   - duplicationGrowth: maximum additional duplication that builds with GRPs
  *   - duplicationHalfLife: GRP level at which duplication growth is ~63% realized
+ *
+ * Design note: most of the reach shaping comes from the exponential curve
+ * and ceiling. Duplication is intentionally a light correction — it nudges
+ * high-GRP outputs toward more realistic reach/frequency splits without
+ * dominating the model at low-to-mid GRP levels.
  */
 export interface TVCalibration {
-  /** Maximum reach as a fraction of audience (0–1). Default 0.90. */
+  /** Maximum reach as a fraction of audience (0–1). Default 0.93. */
   maxReach: number;
-  /** Curve steepness / absorption rate. Default 0.70. */
+  /** Curve steepness applied directly to GRPs: exp(-k × GRPs). Default 0.0082. */
   k: number;
-  /** Baseline duplication penalty (fraction, 0–1). Default 0.03. */
+  /** Baseline duplication penalty (fraction, 0–1). Default 0.015. */
   duplicationBase: number;
-  /** Maximum additional duplication growth (fraction). Default 0.12. */
+  /** Maximum additional duplication growth (fraction). Default 0.08. */
   duplicationGrowth: number;
-  /** GRP level at which duplication growth is ~63% realized. Default 200. */
+  /** GRP level at which duplication growth is ~63% realized. Default 275. */
   duplicationHalfLife: number;
 }
 
 /**
- * Default TV calibration — starting point for Citrix alignment.
+ * Default TV calibration — tuned for Citrix alignment.
  *
  * These values are set to produce:
- *   - Lower reach than the old model at all GRP levels
+ *   - Lower reach than the legacy exponential model at all GRP levels
  *   - Higher frequency at all GRP levels
- *   - Reach ceiling ~85–88% even at very high GRPs
- *   - Effective 3+ that reflects the higher frequency
+ *   - Reach ceiling ~84–85% even at very high GRPs
+ *   - Light duplication penalty (~4–9%) that grows gradually
+ *   - Effective 3+ that reflects the adjusted frequency
  *
- * Compare with old model outputs:
- *   Old: 100 GRPs → 63.2% reach, 1.58× freq
- *   New: 100 GRPs → ~52% reach, ~1.93× freq
- *   Old: 200 GRPs → 86.5% reach, 2.31× freq
- *   New: 200 GRPs → ~71% reach, ~2.82× freq
- *   Old: 300 GRPs → 95.0% reach, 3.16× freq
- *   New: 300 GRPs → ~78% reach, ~3.83× freq
+ * Reference outputs:
+ *   Legacy: 100 GRPs → 63.2% reach, 1.58× freq
+ *   This:   100 GRPs → ~50% reach, ~2.00× freq
+ *   Legacy: 200 GRPs → 86.5% reach, 2.31× freq
+ *   This:   200 GRPs → ~71% reach, ~2.83× freq
+ *   Legacy: 300 GRPs → 95.0% reach, 3.16× freq
+ *   This:   300 GRPs → ~79% reach, ~3.79× freq
+ *
+ * Tuning notes:
+ *   - k is applied directly to GRPs (no /100 scaling) — smaller values
+ *     slow initial reach growth, larger values speed it up
+ *   - Duplication is a light adjustment; most shaping comes from
+ *     the curve + ceiling. Increase dupGrowth or lower dupHL to
+ *     compress reach further at high GRPs.
  */
 export const TV_CALIBRATION_DEFAULT: TVCalibration = {
-  maxReach: 0.90,
-  k: 0.70,
-  duplicationBase: 0.03,
-  duplicationGrowth: 0.12,
-  duplicationHalfLife: 200,
+  maxReach: 0.93,
+  k: 0.0082,
+  duplicationBase: 0.015,
+  duplicationGrowth: 0.08,
+  duplicationHalfLife: 275,
 };
 
 // ---------------------------------------------------------------------------
@@ -190,9 +204,12 @@ export function estimateTVReach(
   }
 
   // Step 1: Raw reach with ceiling
-  // Reach% = maxReach × (1 − e^(−k × GRPs / 100))
+  // Reach% = maxReach × (1 − e^(−k × GRPs))
+  // Note: k is applied directly to GRPs (no /100 scaling). The k value
+  // itself is small (~0.008) to compensate. This avoids double-dampening
+  // when combined with the ceiling and duplication adjustment.
   const rawReachFraction =
-    calibration.maxReach * (1 - Math.exp((-calibration.k * grps) / 100));
+    calibration.maxReach * (1 - Math.exp(-calibration.k * grps));
   const rawReachPercent = rawReachFraction * 100;
 
   // Step 2: Duplication penalty — increases with GRPs

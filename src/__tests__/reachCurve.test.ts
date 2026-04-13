@@ -63,14 +63,14 @@ describe("estimateTVReach", () => {
     const tvResult = estimateTVReach(100);
     const legacyReach = estimateReachPercent(100, 1.0);
     expect(tvResult.reachPercent).toBeLessThan(legacyReach);
-    expect(tvResult.reachPercent).toBeCloseTo(41.81, 0);
+    expect(tvResult.reachPercent).toBeCloseTo(50.0, 0);
   });
 
   it("produces lower reach than legacy model at 200 GRPs", () => {
     const tvResult = estimateTVReach(200);
     const legacyReach = estimateReachPercent(200, 1.0);
     expect(tvResult.reachPercent).toBeLessThan(legacyReach);
-    expect(tvResult.reachPercent).toBeCloseTo(60.63, 0);
+    expect(tvResult.reachPercent).toBeCloseTo(70.7, 0);
   });
 
   it("produces higher frequency than legacy model at 200 GRPs", () => {
@@ -78,7 +78,7 @@ describe("estimateTVReach", () => {
     const legacyReach = estimateReachPercent(200, 1.0);
     const legacyFreq = 200 / legacyReach;
     expect(tvResult.frequency).toBeGreaterThan(legacyFreq);
-    expect(tvResult.frequency).toBeCloseTo(3.30, 1);
+    expect(tvResult.frequency).toBeCloseTo(2.83, 1);
   });
 
   // --- Diminishing returns ---
@@ -120,8 +120,8 @@ describe("estimateTVReach", () => {
     const r1000 = estimateTVReach(1000).reachPercent;
 
     // Should be well below 100% even at very high GRPs
-    expect(r500).toBeLessThan(80);
-    expect(r1000).toBeLessThan(80);
+    expect(r500).toBeLessThan(90);
+    expect(r1000).toBeLessThan(90);
 
     // Should be bounded by maxReach ceiling
     expect(r1000).toBeLessThan(TV_CALIBRATION_DEFAULT.maxReach * 100);
@@ -168,8 +168,8 @@ describe("estimateTVReach", () => {
 
   it("changing k materially changes output", () => {
     const defaultResult = estimateTVReach(200);
-    const slowerK: TVCalibration = { ...TV_CALIBRATION_DEFAULT, k: 0.50 };
-    const fasterK: TVCalibration = { ...TV_CALIBRATION_DEFAULT, k: 1.00 };
+    const slowerK: TVCalibration = { ...TV_CALIBRATION_DEFAULT, k: 0.005 };
+    const fasterK: TVCalibration = { ...TV_CALIBRATION_DEFAULT, k: 0.012 };
 
     const slower = estimateTVReach(200, slowerK);
     const faster = estimateTVReach(200, fasterK);

@@ -114,11 +114,11 @@ describe("resolveTactic", () => {
 
   it("auto-estimates Reach% for TV when GRPs known but no Reach/Frequency", () => {
     const result = resolveTactic({ ...tvInput, grps: 200 });
-    // Calibrated TV model: 200 GRPs → ~60.63% reach, ~3.30× freq
-    // (lower reach / higher frequency than old exponential model)
-    expect(result.reachPercent).toBeCloseTo(60.63, 0);
+    // Calibrated TV model: 200 GRPs → ~70.7% reach, ~2.83× freq
+    // (lower reach / higher frequency than legacy exponential model)
+    expect(result.reachPercent).toBeCloseTo(70.7, 0);
     expect(result.reachPercentEstimated).toBe(true);
-    expect(result.frequency).toBeCloseTo(3.30, 0);
+    expect(result.frequency).toBeCloseTo(2.83, 0);
     expect(result.isFullyResolved).toBe(true);
     expect(result.effective3Plus).not.toBeNull();
     // Effective 3+ should use adjusted lambda (= frequency), not naive GRPs/100
@@ -141,9 +141,9 @@ describe("resolveTactic", () => {
 
   it("auto-estimates Reach% for TV from Cost+CPM derived GRPs", () => {
     const result = resolveTactic({ ...tvInput, cost: 5_000_000, cpm: 25 });
-    // GRPs = 160, Calibrated TV model: ~54.81% reach
+    // GRPs = 160, Calibrated TV model: ~64.5% reach
     expect(result.grps).toBe(160);
-    expect(result.reachPercent).toBeCloseTo(54.81, 0);
+    expect(result.reachPercent).toBeCloseTo(64.5, 0);
     expect(result.reachPercentEstimated).toBe(true);
     expect(result.isFullyResolved).toBe(true);
   });
