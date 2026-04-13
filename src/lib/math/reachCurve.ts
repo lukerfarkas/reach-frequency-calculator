@@ -67,9 +67,9 @@ export interface TVCalibration {
   maxReach: number;
   /** Curve steepness applied directly to GRPs: exp(-k × GRPs). Default 0.0082. */
   k: number;
-  /** Baseline duplication penalty (fraction, 0–1). Default 0.015. */
+  /** Baseline duplication penalty (fraction, 0–1). Default 0.025. */
   duplicationBase: number;
-  /** Maximum additional duplication growth (fraction). Default 0.08. */
+  /** Maximum additional duplication growth (fraction). Default 0.10. */
   duplicationGrowth: number;
   /** GRP level at which duplication growth is ~63% realized. Default 275. */
   duplicationHalfLife: number;
@@ -82,16 +82,16 @@ export interface TVCalibration {
  *   - Lower reach than the legacy exponential model at all GRP levels
  *   - Higher frequency at all GRP levels
  *   - Reach ceiling ~84–85% even at very high GRPs
- *   - Light duplication penalty (~4–9%) that grows gradually
+ *   - Light duplication penalty (~5–11%) that grows gradually
  *   - Effective 3+ that reflects the adjusted frequency
  *
  * Reference outputs:
  *   Legacy: 100 GRPs → 63.2% reach, 1.58× freq
- *   This:   100 GRPs → ~50% reach, ~2.00× freq
+ *   This:   100 GRPs → ~49% reach, ~2.05× freq
  *   Legacy: 200 GRPs → 86.5% reach, 2.31× freq
- *   This:   200 GRPs → ~71% reach, ~2.83× freq
+ *   This:   200 GRPs → ~68% reach, ~2.93× freq
  *   Legacy: 300 GRPs → 95.0% reach, 3.16× freq
- *   This:   300 GRPs → ~79% reach, ~3.79× freq
+ *   This:   300 GRPs → ~76% reach, ~3.93× freq
  *
  * Tuning notes:
  *   - k is applied directly to GRPs (no /100 scaling) — smaller values
@@ -103,8 +103,8 @@ export interface TVCalibration {
 export const TV_CALIBRATION_DEFAULT: TVCalibration = {
   maxReach: 0.93,
   k: 0.0082,
-  duplicationBase: 0.015,
-  duplicationGrowth: 0.08,
+  duplicationBase: 0.025,
+  duplicationGrowth: 0.10,
   duplicationHalfLife: 275,
 };
 

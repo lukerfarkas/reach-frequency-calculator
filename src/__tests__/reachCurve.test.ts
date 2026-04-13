@@ -63,14 +63,14 @@ describe("estimateTVReach", () => {
     const tvResult = estimateTVReach(100);
     const legacyReach = estimateReachPercent(100, 1.0);
     expect(tvResult.reachPercent).toBeLessThan(legacyReach);
-    expect(tvResult.reachPercent).toBeCloseTo(50.0, 0);
+    expect(tvResult.reachPercent).toBeCloseTo(49.2, 0);
   });
 
   it("produces lower reach than legacy model at 200 GRPs", () => {
     const tvResult = estimateTVReach(200);
     const legacyReach = estimateReachPercent(200, 1.0);
     expect(tvResult.reachPercent).toBeLessThan(legacyReach);
-    expect(tvResult.reachPercent).toBeCloseTo(70.7, 0);
+    expect(tvResult.reachPercent).toBeCloseTo(69.2, 0);
   });
 
   it("produces higher frequency than legacy model at 200 GRPs", () => {
@@ -78,7 +78,7 @@ describe("estimateTVReach", () => {
     const legacyReach = estimateReachPercent(200, 1.0);
     const legacyFreq = 200 / legacyReach;
     expect(tvResult.frequency).toBeGreaterThan(legacyFreq);
-    expect(tvResult.frequency).toBeCloseTo(2.83, 1);
+    expect(tvResult.frequency).toBeCloseTo(2.89, 1);
   });
 
   // --- Diminishing returns ---
