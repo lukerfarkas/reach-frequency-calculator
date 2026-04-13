@@ -65,9 +65,9 @@ export default function ShowMathPanel() {
               <li>Eff. 3+ λ = Frequency (not naive GRPs/100)</li>
             </ul>
             <p className="mt-1 text-xs text-unlock-medium-gray">
-              Defaults: maxReach = 0.93, k = 0.0082, duplicationBase = 0.025,
-              duplicationGrowth = 0.10, halfLife = 275 GRPs. Most shaping comes from
-              the curve and ceiling; duplication is a light correction (~5–11%).
+              Defaults: maxReach = 0.93, k = 0.0082, duplicationBase = 0.03,
+              duplicationGrowth = 0.13, halfLife = 120 GRPs. Most shaping comes from
+              the curve and ceiling; duplication adds ~10–16% correction.
               Auto-applied when channel is TV and no Reach%/Frequency is provided.
             </p>
           </section>
