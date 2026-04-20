@@ -109,6 +109,33 @@ export const TV_CALIBRATION_DEFAULT: TVCalibration = {
 };
 
 // ---------------------------------------------------------------------------
+// Radio Calibration
+// ---------------------------------------------------------------------------
+
+/**
+ * Default Radio calibration.
+ *
+ * Radio typically has lower unique reach than TV (not everyone listens)
+ * and builds frequency faster (loyal/habitual listeners). These defaults
+ * reflect that with a lower ceiling and more duplication.
+ *
+ * Reference outputs:
+ *   100 GRPs → ~42% reach, ~2.4× freq
+ *   200 GRPs → ~58% reach, ~3.4× freq
+ *   500 GRPs → ~69% reach, ~7.2× freq
+ *   719 GRPs → ~70% reach, ~10.3× freq
+ *
+ * These are starting estimates — calibrate against Citrix Radio outputs.
+ */
+export const RADIO_CALIBRATION_DEFAULT: TVCalibration = {
+  maxReach: 0.85,
+  k: 0.008,
+  duplicationBase: 0.035,
+  duplicationGrowth: 0.14,
+  duplicationHalfLife: 150,
+};
+
+// ---------------------------------------------------------------------------
 // Daypart Weighting — placeholder for future implementation
 // ---------------------------------------------------------------------------
 
@@ -282,6 +309,8 @@ export function getReachCurveK(channel: string): number | null {
   switch (channel) {
     case "TV":
       return TV_CALIBRATION_DEFAULT.k;
+    case "Radio":
+      return RADIO_CALIBRATION_DEFAULT.k;
     default:
       return null;
   }

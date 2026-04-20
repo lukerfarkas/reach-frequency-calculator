@@ -4,6 +4,7 @@ import {
   estimateTVReach,
   getReachCurveK,
   TV_CALIBRATION_DEFAULT,
+  RADIO_CALIBRATION_DEFAULT,
   type TVCalibration,
 } from "@/lib/math/reachCurve";
 
@@ -236,6 +237,38 @@ describe("estimateTVReach", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Radio reach model (uses same function with Radio calibration)
+// ---------------------------------------------------------------------------
+
+describe("estimateTVReach with Radio calibration", () => {
+  it("produces lower reach than TV at same GRPs", () => {
+    const tvResult = estimateTVReach(200);
+    const radioResult = estimateTVReach(200, RADIO_CALIBRATION_DEFAULT);
+    expect(radioResult.reachPercent).toBeLessThan(tvResult.reachPercent);
+  });
+
+  it("produces higher frequency than TV at same GRPs", () => {
+    const tvResult = estimateTVReach(200);
+    const radioResult = estimateTVReach(200, RADIO_CALIBRATION_DEFAULT);
+    expect(radioResult.frequency).toBeGreaterThan(tvResult.frequency);
+  });
+
+  it("has a lower effective ceiling than TV", () => {
+    const radioHigh = estimateTVReach(1000, RADIO_CALIBRATION_DEFAULT);
+    const tvHigh = estimateTVReach(1000);
+    expect(radioHigh.reachPercent).toBeLessThan(tvHigh.reachPercent);
+    expect(radioHigh.reachPercent).toBeLessThan(75); // Radio ceiling is lower
+  });
+
+  it("produces reasonable reach at typical Radio GRP levels", () => {
+    const r719 = estimateTVReach(719, RADIO_CALIBRATION_DEFAULT);
+    expect(r719.reachPercent).toBeGreaterThan(60);
+    expect(r719.reachPercent).toBeLessThan(80);
+    expect(r719.frequency).toBeGreaterThan(8);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // getReachCurveK
 // ---------------------------------------------------------------------------
 
@@ -248,8 +281,8 @@ describe("getReachCurveK", () => {
     expect(getReachCurveK("Digital")).toBeNull();
   });
 
-  it("returns null for Radio", () => {
-    expect(getReachCurveK("Radio")).toBeNull();
+  it("returns k for Radio", () => {
+    expect(getReachCurveK("Radio")).toBe(0.008);
   });
 
   it("returns null for Social", () => {

@@ -125,7 +125,7 @@ describe("resolveTactic", () => {
     expect(result.effective3Plus!.lambda).toBeCloseTo(result.frequency!, 1);
   });
 
-  it("does NOT auto-estimate Reach% for non-TV channels", () => {
+  it("does NOT auto-estimate Reach% for Digital channel", () => {
     const result = resolveTactic({ ...baseInput, grps: 200 });
     expect(result.reachPercent).toBeNull();
     expect(result.reachPercentEstimated).toBe(false);
@@ -151,6 +151,34 @@ describe("resolveTactic", () => {
   it("reachPercentEstimated is false when Reach%+Frequency provided for TV", () => {
     const result = resolveTactic({ ...tvInput, reachPercent: 60, frequency: 5 });
     expect(result.reachPercent).toBe(60);
+    expect(result.reachPercentEstimated).toBe(false);
+  });
+
+  // --- Radio Reach Curve tests ---
+
+  const radioInput = { ...baseInput, channel: "Radio" };
+
+  it("auto-estimates Reach% for Radio when GRPs known", () => {
+    const result = resolveTactic({ ...radioInput, grps: 200 });
+    expect(result.reachPercent).toBeCloseTo(58.5, 0);
+    expect(result.reachPercentEstimated).toBe(true);
+    expect(result.frequency).toBeCloseTo(3.42, 0);
+    expect(result.isFullyResolved).toBe(true);
+    // Effective 3+ uses adjusted frequency as lambda
+    expect(result.effective3Plus).not.toBeNull();
+    expect(result.effective3Plus!.lambda).toBeCloseTo(result.frequency!, 1);
+  });
+
+  it("Radio reach is lower than TV reach at same GRPs", () => {
+    const tvResult = resolveTactic({ ...tvInput, grps: 200 });
+    const radioResult = resolveTactic({ ...radioInput, grps: 200 });
+    expect(radioResult.reachPercent!).toBeLessThan(tvResult.reachPercent!);
+    expect(radioResult.frequency!).toBeGreaterThan(tvResult.frequency!);
+  });
+
+  it("uses user-provided Reach% over estimate for Radio", () => {
+    const result = resolveTactic({ ...radioInput, grps: 200, reachPercent: 50 });
+    expect(result.reachPercent).toBe(50);
     expect(result.reachPercentEstimated).toBe(false);
   });
 });
