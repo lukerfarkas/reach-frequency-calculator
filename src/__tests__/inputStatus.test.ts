@@ -203,10 +203,47 @@ describe("analyzeRowInputs", () => {
     expect(result.guidanceMessage).toContain("auto-estimated");
   });
 
-  it("Digital + GRPs only → still partial (no reach curve)", () => {
+  it("Digital + GRPs only → still partial with explicit manual-only coaching", () => {
     const result = analyzeRowInputs({ ...empty, grps: "160", channel: "Digital" });
     expect(result.overallStatus).toBe("partial");
-    expect(result.guidanceMessage).not.toContain("auto-estimated");
+    // Manual-only channel: user must be told explicitly that auto-estimation
+    // is NOT available and they need to provide Reach%/Frequency themselves.
+    expect(result.guidanceMessage).toContain("Digital");
+    expect(result.guidanceMessage).toContain("cannot be auto-estimated");
+    expect(result.guidanceMessage).toContain("Reach%");
+  });
+
+  it("Social + GRPs only → partial with explicit manual-only coaching", () => {
+    const result = analyzeRowInputs({ ...empty, grps: "160", channel: "Social" });
+    expect(result.overallStatus).toBe("partial");
+    expect(result.guidanceMessage).toContain("Social");
+    expect(result.guidanceMessage).toContain("cannot be auto-estimated");
+  });
+
+  it("Other + Cost+CPM → partial with explicit manual-only coaching", () => {
+    const result = analyzeRowInputs({
+      ...empty,
+      cost: "5000000",
+      cpm: "25",
+      channel: "Other",
+    });
+    expect(result.overallStatus).toBe("partial");
+    expect(result.guidanceMessage).toContain("Other");
+    expect(result.guidanceMessage).toContain("cannot be auto-estimated");
+  });
+
+  it("Print + GRPs only → ready (calibrated curve)", () => {
+    const result = analyzeRowInputs({ ...empty, grps: "160", channel: "Print" });
+    expect(result.overallStatus).toBe("ready");
+    expect(result.guidanceMessage).toContain("Print");
+    expect(result.guidanceMessage).toContain("auto-estimated");
+  });
+
+  it("OOH + GRPs only → ready (calibrated curve)", () => {
+    const result = analyzeRowInputs({ ...empty, grps: "160", channel: "OOH" });
+    expect(result.overallStatus).toBe("ready");
+    expect(result.guidanceMessage).toContain("OOH");
+    expect(result.guidanceMessage).toContain("auto-estimated");
   });
 
   it("no channel (backward compat) + GRPs → still partial", () => {

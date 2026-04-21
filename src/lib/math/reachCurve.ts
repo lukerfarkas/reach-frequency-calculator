@@ -136,6 +136,156 @@ export const RADIO_CALIBRATION_DEFAULT: TVCalibration = {
 };
 
 // ---------------------------------------------------------------------------
+// Print Calibration
+// ---------------------------------------------------------------------------
+
+/**
+ * Default Print calibration.
+ *
+ * Print (magazines + newspapers) has structurally lower reach ceilings than
+ * broadcast — readership is smaller and slower-building. Industry reach
+ * curves (MRI/Simmons-style) flatten early and accumulate reach gradually
+ * through repeat insertions, which maps to a low max ceiling, a slow k,
+ * and moderate duplication that grows steadily.
+ *
+ * Starting estimates — refine against MRI/Simmons reach reports when
+ * those are available. Flagged "curve" so the resolver auto-estimates;
+ * planners can always override by entering Reach% + Frequency directly.
+ *
+ * Reference outputs (actual, with these defaults):
+ *   100 GRPs → ~26% reach, ~3.8× freq
+ *   200 GRPs → ~39% reach, ~5.1× freq
+ *   500 GRPs → ~50% reach, ~10× freq
+ *  1000 GRPs → ~52% reach, ~19× freq  (asymptotes ~52% — print saturates)
+ */
+export const PRINT_CALIBRATION_DEFAULT: TVCalibration = {
+  maxReach: 0.65,
+  k: 0.006,
+  duplicationBase: 0.05,
+  duplicationGrowth: 0.15,
+  duplicationHalfLife: 200,
+};
+
+// ---------------------------------------------------------------------------
+// OOH Calibration
+// ---------------------------------------------------------------------------
+
+/**
+ * Default OOH calibration (Geopath-style).
+ *
+ * OOH is the opposite of Print in many ways: very high reach ceilings
+ * (billboards are hard to miss if you're in-market), a steep k (reach
+ * builds quickly with rating points), but high duplication growth (the
+ * same commuters see the same boards repeatedly), so frequency spikes
+ * fast once reach saturates.
+ *
+ * Starting estimates — refine against Geopath OOH outputs when available.
+ *
+ * Reference outputs (actual, with these defaults):
+ *   100 GRPs → ~56% reach, ~1.8× freq
+ *   200 GRPs → ~64% reach, ~3.1× freq
+ *   500 GRPs → ~65% reach, ~7.8× freq
+ *  1000 GRPs → ~64% reach, ~16× freq   (asymptotes ~64% — ceiling × (1-maxDup))
+ */
+export const OOH_CALIBRATION_DEFAULT: TVCalibration = {
+  maxReach: 0.92,
+  k: 0.015,
+  duplicationBase: 0.08,
+  duplicationGrowth: 0.22,
+  duplicationHalfLife: 100,
+};
+
+// ---------------------------------------------------------------------------
+// Channel Registry — single source of truth for per-channel behavior
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether the resolver should auto-estimate Reach% / Frequency for this
+ * channel when only volume (GRPs / impressions / cost+cpm) is provided.
+ *
+ *   "curve"  — use the calibrated saturation model with the channel's
+ *              calibration. (TV, Radio, Print, OOH.)
+ *   "manual" — no auto-estimation; user must enter Reach% or Frequency
+ *              directly. (Digital, Social, Other — channels where a
+ *              single saturation curve isn't a defensible approximation.)
+ */
+export type ChannelEstimationMode = "curve" | "manual";
+
+export interface ChannelConfig {
+  /** Channel name (must match one of `CHANNELS` in schemas.ts). */
+  channel: string;
+  mode: ChannelEstimationMode;
+  /** Calibration to use when mode === "curve". */
+  calibration?: TVCalibration;
+  /**
+   * Plain-language explanation shown to the user when a manual-only
+   * channel has volume but no Reach% / Frequency.
+   */
+  manualOnlyReason?: string;
+}
+
+/**
+ * Central registry of per-channel behavior. Every entry in the `CHANNELS`
+ * array in schemas.ts MUST have a ChannelConfig here — this is enforced
+ * by a regression test (see reachCurve.test.ts and resolver.test.ts).
+ *
+ * When adding a new channel:
+ *   1. Add it to `CHANNELS` in schemas.ts.
+ *   2. Add a ChannelConfig entry here (mode + calibration or reason).
+ *   3. The resolver, inputStatus, and UI pick it up automatically.
+ */
+export const CHANNEL_CONFIG: Record<string, ChannelConfig> = {
+  TV: {
+    channel: "TV",
+    mode: "curve",
+    calibration: TV_CALIBRATION_DEFAULT,
+  },
+  Radio: {
+    channel: "Radio",
+    mode: "curve",
+    calibration: RADIO_CALIBRATION_DEFAULT,
+  },
+  Print: {
+    channel: "Print",
+    mode: "curve",
+    calibration: PRINT_CALIBRATION_DEFAULT,
+  },
+  OOH: {
+    channel: "OOH",
+    mode: "curve",
+    calibration: OOH_CALIBRATION_DEFAULT,
+  },
+  Digital: {
+    channel: "Digital",
+    mode: "manual",
+    manualOnlyReason:
+      "Digital reach depends on platform mix, frequency caps, and targeting — a single saturation curve is not a defensible approximation. Enter Reach% and Frequency from your platform reports or media plan.",
+  },
+  Social: {
+    channel: "Social",
+    mode: "manual",
+    manualOnlyReason:
+      "Social reach varies widely by platform, creative, and targeting — a single curve is not a defensible approximation. Enter Reach% and Frequency from your platform reports.",
+  },
+  Other: {
+    channel: "Other",
+    mode: "manual",
+    manualOnlyReason:
+      "Custom channels have no built-in reach model. Enter Reach% and Frequency directly from your data source.",
+  },
+};
+
+/** Look up a channel's config. Returns `null` if the channel is unknown. */
+export function getChannelConfig(channel: string): ChannelConfig | null {
+  return CHANNEL_CONFIG[channel] ?? null;
+}
+
+/** True when the channel has a calibrated reach curve. */
+export function isAutoEstimateChannel(channel: string): boolean {
+  return getChannelConfig(channel)?.mode === "curve";
+}
+
+// ---------------------------------------------------------------------------
 // Daypart Weighting — placeholder for future implementation
 // ---------------------------------------------------------------------------
 
@@ -299,19 +449,12 @@ export function estimateReachPercent(grps: number, k: number = 1.0): number {
 
 /**
  * Get the default reach curve k-parameter for a channel.
- * Returns null if no built-in curve is available for the channel.
+ * Returns `null` if the channel is manual-only or unknown.
  *
- * Note: For TV, the resolver now uses estimateTVReach() directly
- * with full calibration. This function is retained for non-TV
- * channels that may get reach curves in the future.
+ * Note: the resolver uses `getChannelConfig().calibration` directly
+ * when running the full TV-style model. This helper is retained as a
+ * lightweight accessor for callers that only need the k-parameter.
  */
 export function getReachCurveK(channel: string): number | null {
-  switch (channel) {
-    case "TV":
-      return TV_CALIBRATION_DEFAULT.k;
-    case "Radio":
-      return RADIO_CALIBRATION_DEFAULT.k;
-    default:
-      return null;
-  }
+  return getChannelConfig(channel)?.calibration?.k ?? null;
 }

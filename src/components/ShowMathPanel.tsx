@@ -56,7 +56,7 @@ export default function ShowMathPanel() {
           </section>
 
           <section>
-            <h4 className="font-semibold mb-1 text-unlock-black">TV Reach Curve (Calibrated Model)</h4>
+            <h4 className="font-semibold mb-1 text-unlock-black">Calibrated Reach Curve (TV, Radio, Print, OOH)</h4>
             <ul className="list-disc list-inside space-y-1 text-unlock-medium-gray font-mono text-xs">
               <li>rawReach = maxReach × (1 − e<sup>−k × GRPs</sup>)</li>
               <li>duplication = base + growth × (1 − e<sup>−GRPs / halfLife</sup>)</li>
@@ -64,11 +64,39 @@ export default function ShowMathPanel() {
               <li>Frequency = GRPs / adjustedReach%</li>
               <li>Eff. 3+ λ = Frequency (not naive GRPs/100)</li>
             </ul>
-            <p className="mt-1 text-xs text-unlock-medium-gray">
-              Defaults: maxReach = 0.93, k = 0.0082, duplicationBase = 0.03,
-              duplicationGrowth = 0.13, halfLife = 120 GRPs. Most shaping comes from
-              the curve and ceiling; duplication adds ~10–16% correction.
-              Auto-applied when channel is TV and no Reach%/Frequency is provided.
+            <div className="mt-1 space-y-1 text-xs text-unlock-medium-gray">
+              <p>
+                Auto-applied when the channel has a calibrated curve and no
+                Reach%/Frequency is provided. User-entered Reach% or Frequency
+                always takes precedence.
+              </p>
+              <p className="font-mono">
+                TV:    maxReach 0.93, k 0.0082, dupBase 0.03, dupGrowth 0.13, halfLife 120
+              </p>
+              <p className="font-mono">
+                Radio: maxReach 0.85, k 0.008,  dupBase 0.035, dupGrowth 0.14, halfLife 150
+              </p>
+              <p className="font-mono">
+                Print: maxReach 0.65, k 0.006,  dupBase 0.05,  dupGrowth 0.15, halfLife 200
+              </p>
+              <p className="font-mono">
+                OOH:   maxReach 0.92, k 0.015,  dupBase 0.08,  dupGrowth 0.22, halfLife 100
+              </p>
+              <p>
+                Print / OOH defaults are starting estimates — calibrate against
+                MRI/Simmons and Geopath outputs when those are available.
+              </p>
+            </div>
+          </section>
+
+          <section>
+            <h4 className="font-semibold mb-1 text-unlock-black">Manual-Only Channels (Digital, Social, Other)</h4>
+            <p className="text-xs text-unlock-medium-gray">
+              A single saturation curve is not a defensible approximation for
+              these channels — reach varies too much by platform, creative,
+              targeting, and frequency caps. The tool will NOT auto-estimate
+              Reach% or Frequency here. Enter Reach% and Frequency directly
+              from platform reports or your media plan.
             </p>
           </section>
 

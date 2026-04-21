@@ -11,6 +11,8 @@
  * only string presence checks. Safe to call on every keystroke.
  */
 
+import { getChannelConfig } from "./math/reachCurve";
+
 export type OverallStatus = "insufficient" | "partial" | "ready";
 
 export type ActiveGroup =
@@ -95,21 +97,35 @@ export function analyzeRowInputs(form: {
     overallStatus = "ready";
     guidanceMessage = "All set! You have enough data for a full calculation.";
   } else if (anyVolumePath && !hasAnyBreakdown) {
-    // Have volume but no breakdown — for TV, reach curve will auto-estimate
-    if (form.channel === "TV") {
+    // Have volume but no breakdown. Behavior depends on channel:
+    //   - "curve" channels (TV, Radio, Print, OOH) auto-estimate Reach%.
+    //   - "manual" channels (Digital, Social, Other) require the user to
+    //     enter Reach% / Frequency — we coach them explicitly.
+    const channelConfig = form.channel ? getChannelConfig(form.channel) : null;
+    const mode = channelConfig?.mode;
+    const channelLabel = form.channel ?? "this channel";
+
+    if (mode === "curve") {
       if (has.grps) {
-        guidanceMessage =
-          "GRPs are in for TV. Reach% will be auto-estimated from the reach curve, or add your own Reach%/Frequency.";
+        guidanceMessage = `GRPs are in for ${channelLabel}. Reach% will be auto-estimated from the reach curve, or add your own Reach%/Frequency to override.`;
       } else if (has.grossImpressions) {
-        guidanceMessage =
-          "Got your impressions for TV. Reach% will be auto-estimated, or add your own.";
+        guidanceMessage = `Got your impressions for ${channelLabel}. Reach% will be auto-estimated, or add your own to override.`;
       } else {
-        guidanceMessage =
-          "Net Cost + CPM locked in for TV. Reach% will be auto-estimated, or add your own.";
+        guidanceMessage = `Net Cost + CPM locked in for ${channelLabel}. Reach% will be auto-estimated, or add your own to override.`;
       }
       overallStatus = "ready";
+    } else if (mode === "manual") {
+      // Manual-only channel: explicit that R/F is required.
+      if (has.grps) {
+        guidanceMessage = `GRPs are in, but ${channelLabel} reach cannot be auto-estimated — add Reach% or Frequency from your platform data to complete the calculation.`;
+      } else if (has.grossImpressions) {
+        guidanceMessage = `Got your impressions, but ${channelLabel} reach cannot be auto-estimated — add Reach% or Frequency to complete the calculation.`;
+      } else {
+        guidanceMessage = `Net Cost + CPM locked in, but ${channelLabel} reach cannot be auto-estimated — add Reach% or Frequency to finish.`;
+      }
+      overallStatus = "partial";
     } else {
-      // Non-TV: coach them to add breakdown
+      // Unknown channel (or no channel selected yet): generic coaching.
       if (has.grps) {
         guidanceMessage =
           "Good, GRPs are in. Now add Reach% or Frequency so we can break that down.";

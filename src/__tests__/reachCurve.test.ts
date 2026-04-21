@@ -3,10 +3,16 @@ import {
   estimateReachPercent,
   estimateTVReach,
   getReachCurveK,
+  getChannelConfig,
+  isAutoEstimateChannel,
+  CHANNEL_CONFIG,
   TV_CALIBRATION_DEFAULT,
   RADIO_CALIBRATION_DEFAULT,
+  PRINT_CALIBRATION_DEFAULT,
+  OOH_CALIBRATION_DEFAULT,
   type TVCalibration,
 } from "@/lib/math/reachCurve";
+import { CHANNELS } from "@/lib/schemas";
 
 // ---------------------------------------------------------------------------
 // Legacy estimateReachPercent (simple exponential, no ceiling)
@@ -285,11 +291,233 @@ describe("getReachCurveK", () => {
     expect(getReachCurveK("Radio")).toBe(0.008);
   });
 
+  it("returns k for Print", () => {
+    expect(getReachCurveK("Print")).toBe(PRINT_CALIBRATION_DEFAULT.k);
+  });
+
+  it("returns k for OOH", () => {
+    expect(getReachCurveK("OOH")).toBe(OOH_CALIBRATION_DEFAULT.k);
+  });
+
   it("returns null for Social", () => {
     expect(getReachCurveK("Social")).toBeNull();
   });
 
+  it("returns null for Other", () => {
+    expect(getReachCurveK("Other")).toBeNull();
+  });
+
   it("returns null for unknown channels", () => {
     expect(getReachCurveK("Carrier Pigeon")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Print reach model (uses same function with Print calibration)
+// ---------------------------------------------------------------------------
+
+describe("estimateTVReach with Print calibration", () => {
+  it("produces lower reach than TV at same GRPs", () => {
+    const tvResult = estimateTVReach(200);
+    const printResult = estimateTVReach(200, PRINT_CALIBRATION_DEFAULT);
+    expect(printResult.reachPercent).toBeLessThan(tvResult.reachPercent);
+  });
+
+  it("produces higher frequency than TV at same GRPs", () => {
+    const tvResult = estimateTVReach(200);
+    const printResult = estimateTVReach(200, PRINT_CALIBRATION_DEFAULT);
+    expect(printResult.frequency).toBeGreaterThan(tvResult.frequency);
+  });
+
+  it("asymptotes at a low reach ceiling (~50-55%) — Print saturates early", () => {
+    const r1000 = estimateTVReach(1000, PRINT_CALIBRATION_DEFAULT).reachPercent;
+    const r5000 = estimateTVReach(5000, PRINT_CALIBRATION_DEFAULT).reachPercent;
+    // Well below maxReach ceiling due to duplication
+    expect(r1000).toBeLessThan(55);
+    expect(r5000).toBeLessThan(55);
+    // Bounded by maxReach
+    expect(r5000).toBeLessThan(PRINT_CALIBRATION_DEFAULT.maxReach * 100);
+  });
+
+  it("builds frequency steeply at high GRPs", () => {
+    const r500 = estimateTVReach(500, PRINT_CALIBRATION_DEFAULT);
+    expect(r500.frequency).toBeGreaterThan(8);
+  });
+
+  it("produces reasonable reach at typical Print GRP levels", () => {
+    const r100 = estimateTVReach(100, PRINT_CALIBRATION_DEFAULT);
+    const r200 = estimateTVReach(200, PRINT_CALIBRATION_DEFAULT);
+    // Reference estimates from docstring
+    expect(r100.reachPercent).toBeGreaterThan(20);
+    expect(r100.reachPercent).toBeLessThan(32);
+    expect(r200.reachPercent).toBeGreaterThan(32);
+    expect(r200.reachPercent).toBeLessThan(45);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// OOH reach model (uses same function with OOH calibration)
+// ---------------------------------------------------------------------------
+
+describe("estimateTVReach with OOH calibration", () => {
+  it("produces higher reach than Print at low-to-mid GRPs (OOH builds fast)", () => {
+    const oohLow = estimateTVReach(100, OOH_CALIBRATION_DEFAULT).reachPercent;
+    const printLow = estimateTVReach(100, PRINT_CALIBRATION_DEFAULT).reachPercent;
+    expect(oohLow).toBeGreaterThan(printLow);
+  });
+
+  it("frequency climbs aggressively at high GRPs (heavy duplication)", () => {
+    const r500 = estimateTVReach(500, OOH_CALIBRATION_DEFAULT);
+    const r1000 = estimateTVReach(1000, OOH_CALIBRATION_DEFAULT);
+    expect(r500.frequency).toBeGreaterThan(5);
+    expect(r1000.frequency).toBeGreaterThan(r500.frequency);
+    expect(r1000.frequency).toBeGreaterThan(10);
+  });
+
+  it("reach flattens/bounded well under ceiling at high GRPs", () => {
+    const r1000 = estimateTVReach(1000, OOH_CALIBRATION_DEFAULT).reachPercent;
+    // Bounded by maxReach × (1 - duplication growth saturation)
+    expect(r1000).toBeLessThan(OOH_CALIBRATION_DEFAULT.maxReach * 100);
+    // Ceiling ends up around 64% due to ~30% duplication at saturation
+    expect(r1000).toBeLessThan(75);
+  });
+
+  it("produces reasonable reach at typical OOH GRP levels", () => {
+    const r100 = estimateTVReach(100, OOH_CALIBRATION_DEFAULT);
+    const r200 = estimateTVReach(200, OOH_CALIBRATION_DEFAULT);
+    // Reference estimates from docstring: 100 GRPs → ~56%, 200 GRPs → ~64%
+    expect(r100.reachPercent).toBeGreaterThan(48);
+    expect(r100.reachPercent).toBeLessThan(62);
+    expect(r200.reachPercent).toBeGreaterThan(55);
+    expect(r200.reachPercent).toBeLessThan(70);
+  });
+
+  it("duplication ramps faster than TV (shorter halfLife)", () => {
+    // At 100 GRPs, OOH has already realized more duplication than TV
+    const tvDup = estimateTVReach(100).duplicationPenalty;
+    const oohDup = estimateTVReach(100, OOH_CALIBRATION_DEFAULT).duplicationPenalty;
+    expect(oohDup).toBeGreaterThan(tvDup);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Channel registry — getChannelConfig / isAutoEstimateChannel / coverage
+// ---------------------------------------------------------------------------
+
+describe("getChannelConfig", () => {
+  it("returns curve config for TV with TV calibration", () => {
+    const cfg = getChannelConfig("TV");
+    expect(cfg).not.toBeNull();
+    expect(cfg!.mode).toBe("curve");
+    expect(cfg!.calibration).toBe(TV_CALIBRATION_DEFAULT);
+  });
+
+  it("returns curve config for Radio with Radio calibration", () => {
+    const cfg = getChannelConfig("Radio");
+    expect(cfg!.mode).toBe("curve");
+    expect(cfg!.calibration).toBe(RADIO_CALIBRATION_DEFAULT);
+  });
+
+  it("returns curve config for Print with Print calibration", () => {
+    const cfg = getChannelConfig("Print");
+    expect(cfg!.mode).toBe("curve");
+    expect(cfg!.calibration).toBe(PRINT_CALIBRATION_DEFAULT);
+  });
+
+  it("returns curve config for OOH with OOH calibration", () => {
+    const cfg = getChannelConfig("OOH");
+    expect(cfg!.mode).toBe("curve");
+    expect(cfg!.calibration).toBe(OOH_CALIBRATION_DEFAULT);
+  });
+
+  it("returns manual config for Digital with manualOnlyReason", () => {
+    const cfg = getChannelConfig("Digital");
+    expect(cfg!.mode).toBe("manual");
+    expect(cfg!.calibration).toBeUndefined();
+    expect(cfg!.manualOnlyReason).toBeTruthy();
+    expect(cfg!.manualOnlyReason!.length).toBeGreaterThan(0);
+  });
+
+  it("returns manual config for Social with manualOnlyReason", () => {
+    const cfg = getChannelConfig("Social");
+    expect(cfg!.mode).toBe("manual");
+    expect(cfg!.manualOnlyReason).toBeTruthy();
+  });
+
+  it("returns manual config for Other with manualOnlyReason", () => {
+    const cfg = getChannelConfig("Other");
+    expect(cfg!.mode).toBe("manual");
+    expect(cfg!.manualOnlyReason).toBeTruthy();
+  });
+
+  it("returns null for unknown channels", () => {
+    expect(getChannelConfig("Carrier Pigeon")).toBeNull();
+    expect(getChannelConfig("")).toBeNull();
+  });
+});
+
+describe("isAutoEstimateChannel", () => {
+  it("returns true for curve channels (TV, Radio, Print, OOH)", () => {
+    expect(isAutoEstimateChannel("TV")).toBe(true);
+    expect(isAutoEstimateChannel("Radio")).toBe(true);
+    expect(isAutoEstimateChannel("Print")).toBe(true);
+    expect(isAutoEstimateChannel("OOH")).toBe(true);
+  });
+
+  it("returns false for manual channels (Digital, Social, Other)", () => {
+    expect(isAutoEstimateChannel("Digital")).toBe(false);
+    expect(isAutoEstimateChannel("Social")).toBe(false);
+    expect(isAutoEstimateChannel("Other")).toBe(false);
+  });
+
+  it("returns false for unknown channels", () => {
+    expect(isAutoEstimateChannel("Carrier Pigeon")).toBe(false);
+  });
+});
+
+describe("CHANNEL_CONFIG registry coverage (regression)", () => {
+  it("every channel declared in schemas.CHANNELS has a registry entry", () => {
+    // CRITICAL: if this fails, a channel is being shown in the UI but the
+    // resolver won't know what to do with it — silent broken behavior.
+    for (const channel of CHANNELS) {
+      const cfg = CHANNEL_CONFIG[channel];
+      expect(cfg, `Missing CHANNEL_CONFIG entry for "${channel}"`).toBeDefined();
+      expect(cfg.channel).toBe(channel);
+    }
+  });
+
+  it("every curve-mode entry has a calibration", () => {
+    for (const channel of CHANNELS) {
+      const cfg = CHANNEL_CONFIG[channel];
+      if (cfg.mode === "curve") {
+        expect(cfg.calibration, `curve channel "${channel}" missing calibration`).toBeDefined();
+        expect(cfg.calibration!.maxReach).toBeGreaterThan(0);
+        expect(cfg.calibration!.maxReach).toBeLessThanOrEqual(1);
+        expect(cfg.calibration!.k).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("every manual-mode entry has a manualOnlyReason explaining why", () => {
+    for (const channel of CHANNELS) {
+      const cfg = CHANNEL_CONFIG[channel];
+      if (cfg.mode === "manual") {
+        expect(cfg.manualOnlyReason, `manual channel "${channel}" missing manualOnlyReason`).toBeTruthy();
+        expect(cfg.manualOnlyReason!.length).toBeGreaterThan(20);
+      }
+    }
+  });
+
+  it("each calibrated channel produces valid reach/frequency at 200 GRPs", () => {
+    // Sanity check that every calibration is well-formed.
+    for (const channel of CHANNELS) {
+      const cfg = CHANNEL_CONFIG[channel];
+      if (cfg.mode === "curve" && cfg.calibration) {
+        const result = estimateTVReach(200, cfg.calibration);
+        expect(result.reachPercent, `${channel}: invalid reach`).toBeGreaterThan(0);
+        expect(result.reachPercent, `${channel}: reach > 100%`).toBeLessThan(100);
+        expect(result.frequency, `${channel}: invalid freq`).toBeGreaterThan(0);
+      }
+    }
   });
 });

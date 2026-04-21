@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { resolveTactic } from "@/lib/math/resolver";
+import { CHANNELS } from "@/lib/schemas";
 
 describe("resolveTactic", () => {
   const baseInput = {
@@ -180,5 +181,144 @@ describe("resolveTactic", () => {
     const result = resolveTactic({ ...radioInput, grps: 200, reachPercent: 50 });
     expect(result.reachPercent).toBe(50);
     expect(result.reachPercentEstimated).toBe(false);
+  });
+
+  // --- Print Reach Curve tests ---
+
+  const printInput = { ...baseInput, channel: "Print" };
+
+  it("auto-estimates Reach% for Print when GRPs known", () => {
+    const result = resolveTactic({ ...printInput, grps: 200 });
+    expect(result.reachPercent).not.toBeNull();
+    expect(result.reachPercent!).toBeGreaterThan(32);
+    expect(result.reachPercent!).toBeLessThan(45);
+    expect(result.reachPercentEstimated).toBe(true);
+    expect(result.isFullyResolved).toBe(true);
+    // Effective 3+ uses adjusted frequency as lambda
+    expect(result.effective3Plus).not.toBeNull();
+    expect(result.effective3Plus!.lambda).toBeCloseTo(result.frequency!, 1);
+  });
+
+  it("Print reach is lower than TV reach at same GRPs", () => {
+    const tvResult = resolveTactic({ ...tvInput, grps: 200 });
+    const printResult = resolveTactic({ ...printInput, grps: 200 });
+    expect(printResult.reachPercent!).toBeLessThan(tvResult.reachPercent!);
+    expect(printResult.frequency!).toBeGreaterThan(tvResult.frequency!);
+  });
+
+  it("auto-estimates Reach% for Print from Cost+CPM derived GRPs", () => {
+    const result = resolveTactic({ ...printInput, cost: 5_000_000, cpm: 25 });
+    // GRPs = 160
+    expect(result.grps).toBe(160);
+    expect(result.reachPercentEstimated).toBe(true);
+    expect(result.isFullyResolved).toBe(true);
+  });
+
+  it("uses user-provided Reach% over estimate for Print", () => {
+    const result = resolveTactic({ ...printInput, grps: 200, reachPercent: 25 });
+    expect(result.reachPercent).toBe(25);
+    expect(result.reachPercentEstimated).toBe(false);
+  });
+
+  // --- OOH Reach Curve tests ---
+
+  const oohInput = { ...baseInput, channel: "OOH" };
+
+  it("auto-estimates Reach% for OOH when GRPs known", () => {
+    const result = resolveTactic({ ...oohInput, grps: 200 });
+    expect(result.reachPercent).not.toBeNull();
+    expect(result.reachPercent!).toBeGreaterThan(55);
+    expect(result.reachPercent!).toBeLessThan(70);
+    expect(result.reachPercentEstimated).toBe(true);
+    expect(result.isFullyResolved).toBe(true);
+    // Effective 3+ uses adjusted frequency as lambda
+    expect(result.effective3Plus).not.toBeNull();
+    expect(result.effective3Plus!.lambda).toBeCloseTo(result.frequency!, 1);
+  });
+
+  it("OOH reach builds fast at low GRPs", () => {
+    // At 100 GRPs OOH should have high reach due to steep k and high ceiling
+    const r100 = resolveTactic({ ...oohInput, grps: 100 });
+    expect(r100.reachPercent!).toBeGreaterThan(45);
+  });
+
+  it("uses user-provided Reach% over estimate for OOH", () => {
+    const result = resolveTactic({ ...oohInput, grps: 200, reachPercent: 80 });
+    expect(result.reachPercent).toBe(80);
+    expect(result.reachPercentEstimated).toBe(false);
+  });
+
+  // --- Manual-only channels (Digital, Social, Other) ---
+
+  it("Digital with GRPs-only produces explicit manual-only warning", () => {
+    const result = resolveTactic({ ...baseInput, channel: "Digital", grps: 200 });
+    expect(result.reachPercent).toBeNull();
+    expect(result.reachPercentEstimated).toBe(false);
+    expect(result.isFullyResolved).toBe(false);
+    // Warning must mention both the channel AND "cannot be auto-estimated"
+    expect(
+      result.warnings.some(
+        (w) => w.includes("Digital") && w.includes("cannot be auto-estimated")
+      )
+    ).toBe(true);
+  });
+
+  it("Social with GRPs-only produces explicit manual-only warning", () => {
+    const result = resolveTactic({ ...baseInput, channel: "Social", grps: 200 });
+    expect(result.reachPercent).toBeNull();
+    expect(result.isFullyResolved).toBe(false);
+    expect(
+      result.warnings.some(
+        (w) => w.includes("Social") && w.includes("cannot be auto-estimated")
+      )
+    ).toBe(true);
+  });
+
+  it("Other with GRPs-only produces explicit manual-only warning", () => {
+    const result = resolveTactic({ ...baseInput, channel: "Other", grps: 200 });
+    expect(result.reachPercent).toBeNull();
+    expect(result.isFullyResolved).toBe(false);
+    expect(
+      result.warnings.some(
+        (w) => w.includes("Other") && w.includes("cannot be auto-estimated")
+      )
+    ).toBe(true);
+  });
+
+  it("manual-only channel with user-provided Reach%+Frequency still resolves fully", () => {
+    const result = resolveTactic({
+      ...baseInput,
+      channel: "Social",
+      reachPercent: 40,
+      frequency: 3,
+    });
+    expect(result.reachPercent).toBe(40);
+    expect(result.frequency).toBe(3);
+    expect(result.grps).toBe(120);
+    expect(result.isFullyResolved).toBe(true);
+    expect(result.reachPercentEstimated).toBe(false);
+  });
+
+  // --- Registry coverage regression ---
+
+  describe("every declared channel is handled by resolver (coverage regression)", () => {
+    // For each channel in CHANNELS, the resolver MUST either:
+    //   - auto-estimate Reach% (for curve channels), or
+    //   - emit an explicit manual-only warning (for manual channels).
+    // No channel should silently produce null reach with no guidance.
+    for (const channel of CHANNELS) {
+      it(`${channel}: GRPs-only either resolves R&F or warns explicitly`, () => {
+        const result = resolveTactic({ ...baseInput, channel, grps: 200 });
+        const didAutoEstimate =
+          result.reachPercentEstimated && result.reachPercent != null;
+        const hasExplicitManualWarning = result.warnings.some(
+          (w) => w.includes(channel) && w.includes("cannot be auto-estimated")
+        );
+        expect(
+          didAutoEstimate || hasExplicitManualWarning,
+          `channel "${channel}" neither auto-estimates R&F nor warns explicitly`
+        ).toBe(true);
+      });
+    }
   });
 });
