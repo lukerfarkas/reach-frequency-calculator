@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import TacticFormRow, {
   type TacticFormData,
   emptyTacticForm,
@@ -9,9 +9,12 @@ import TacticResultCard from "@/components/TacticResultCard";
 import PlanSummaryPanel from "@/components/PlanSummaryPanel";
 import CombinedReachSteps from "@/components/CombinedReachSteps";
 import ShowMathPanel from "@/components/ShowMathPanel";
-import { tacticInputSchema, validateCombinableGroup } from "@/lib/schemas";
+import { tacticInputSchema } from "@/lib/schemas";
 import { resolveTactic, type ResolvedTactic } from "@/lib/math/resolver";
-import { computePlanSummary, type PlanSummaryResult } from "@/lib/math/calculations";
+import {
+  computeGroupSummary,
+  groupResolvedByChannel,
+} from "@/lib/channelGrouping";
 import { SEED_TACTICS } from "@/lib/seedData";
 import { parseNumeric } from "@/lib/parseNumeric";
 import type { TacticInput } from "@/lib/schemas";
@@ -83,9 +86,44 @@ export default function HomePage() {
 
   // Results
   const [resolvedTactics, setResolvedTactics] = useState<ResolvedTactic[]>([]);
-  const [planSummary, setPlanSummary] = useState<PlanSummaryResult | null>(null);
-  const [planError, setPlanError] = useState<string | null>(null);
   const [showResults, setShowResults] = useState(false);
+
+  // Full-plan summary — derived reactively from selection so deselecting a
+  // tactic post-Calculate live-updates the rollup. `id` is optional on
+  // ResolvedTactic (tests/scripted callers don't set one), so a tactic
+  // with no id is treated as unselected in the UI — which is safe
+  // because this page always threads id through.
+  const selectedResolved = useMemo(
+    () => resolvedTactics.filter((t) => t.id != null && selectedIds.has(t.id)),
+    [resolvedTactics, selectedIds]
+  );
+  const { summary: planSummary, reachError: planError } = useMemo(
+    () => computeGroupSummary(selectedResolved),
+    [selectedResolved]
+  );
+
+  // Per-channel groups + subtotals. All resolved tactics appear (so every
+  // card renders), but each subtotal is computed over just the SELECTED
+  // tactics in that channel — matching the full-plan rollup's behavior.
+  // Same code path (`computeGroupSummary`) keeps subtotals and the full
+  // plan consistent: geo/audience mismatches in one channel don't affect
+  // another, and deselecting a tactic live-updates its channel subtotal.
+  const channelGroups = useMemo(() => {
+    const groups = groupResolvedByChannel(resolvedTactics);
+    return groups.map((g) => {
+      const selectedInGroup = g.tactics.filter(
+        (t) => t.id != null && selectedIds.has(t.id)
+      );
+      const { summary, reachError } = computeGroupSummary(selectedInGroup);
+      return {
+        channel: g.channel,
+        tactics: g.tactics,
+        selectedCount: selectedInGroup.length,
+        summary,
+        reachError,
+      };
+    });
+  }, [resolvedTactics, selectedIds]);
 
   // File input ref for import
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -187,9 +225,12 @@ export default function HomePage() {
       return;
     }
 
-    // Resolve each tactic
+    // Resolve each tactic. `id` is threaded through so the UI can map
+    // resolved results back to form rows for selection / per-channel
+    // subtotals that respect the selection checkboxes.
     const resolved = validInputs.map((input) =>
       resolveTactic({
+        id: input.id,
         tacticName: input.tacticName,
         geoName: input.geoName,
         audienceName: input.audienceName,
@@ -206,64 +247,14 @@ export default function HomePage() {
 
     setResolvedTactics(resolved);
 
-    // Auto-select all tactics for the full program rollup
-    const allIds = new Set(validInputs.map((t) => t.id));
-    setSelectedIds(allIds);
-
-    // Plan summary for all resolved tactics
-    if (resolved.length >= 2) {
-      // Check geo/audience guardrail
-      const combineCheck = validateCombinableGroup(resolved);
-      const withReach = resolved.filter(
-        (r) => r.reachPercent != null && r.grps != null
-      );
-      const canCombineReach = combineCheck.valid && withReach.length === resolved.length;
-
-      if (!combineCheck.valid) {
-        setPlanError(combineCheck.error ?? "Cannot combine these tactics.");
-      } else if (!canCombineReach) {
-        setPlanError(
-          "Some tactics do not have Reach% or GRPs computed. Cannot combine reach."
-        );
-      } else {
-        setPlanError(null);
-      }
-
-      if (canCombineReach) {
-        // Full summary with reach + cost rollup
-        const summary = computePlanSummary(
-          withReach.map((r) => ({
-            tacticName: r.tacticName,
-            reachPercent: r.reachPercent!,
-            grps: r.grps!,
-            inputCost: r.inputCost,
-            grossImpressions: r.grossImpressions,
-          })),
-          withReach[0].audienceSize
-        );
-        setPlanSummary(summary);
-      } else {
-        // Cost-only rollup: use dummy reach values so computePlanSummary works,
-        // then we display only the cost section in the panel.
-        const summary = computePlanSummary(
-          resolved.map((r) => ({
-            tacticName: r.tacticName,
-            reachPercent: r.reachPercent ?? 0,
-            grps: r.grps ?? 0,
-            inputCost: r.inputCost,
-            grossImpressions: r.grossImpressions,
-          })),
-          resolved[0].audienceSize
-        );
-        setPlanSummary(summary);
-      }
-    } else {
-      setPlanError(null);
-      setPlanSummary(null);
-    }
+    // Auto-select all tactics so the full-plan and per-channel rollups
+    // appear by default. `planSummary` / `planError` / `channelGroups` are
+    // derived via useMemo from `resolvedTactics + selectedIds`, so toggling
+    // selection after Calculate live-updates every summary.
+    setSelectedIds(new Set(validInputs.map((t) => t.id)));
 
     setShowResults(true);
-  }, [tactics, selectedIds]);
+  }, [tactics]);
 
   // -----------------------------------------------------------------------
   // Export / Import
@@ -511,26 +502,59 @@ export default function HomePage() {
 
       {/* Results */}
       {showResults && (
-        <div className="space-y-4">
+        <div className="space-y-6">
           <h2 className="text-lg font-bold text-unlock-black">Results</h2>
 
           {/* Show Math toggle */}
           <ShowMathPanel />
 
-          {/* Tactic cards */}
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {resolvedTactics.map((rt, i) => (
-              <TacticResultCard key={i} tactic={rt} />
-            ))}
-          </div>
+          {/* Per-channel sections: each channel gets its own block of
+              tactic cards + (optional) channel-level subtotal panel. */}
+          {channelGroups.map((group) => (
+            <section key={group.channel} className="space-y-3">
+              <div className="flex items-baseline gap-2 border-b border-unlock-light-gray pb-1">
+                <h3 className="text-base font-semibold text-unlock-black">
+                  {group.channel}
+                </h3>
+                <span className="text-xs text-unlock-medium-gray">
+                  {group.tactics.length}{" "}
+                  {group.tactics.length === 1 ? "tactic" : "tactics"}
+                  {group.selectedCount < group.tactics.length &&
+                    ` · ${group.selectedCount} selected`}
+                </span>
+              </div>
 
-          {/* Plan Summary */}
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {group.tactics.map((rt, i) => (
+                  <TacticResultCard
+                    key={rt.id ?? `${rt.tacticName}-${rt.geoName}-${i}`}
+                    tactic={rt}
+                  />
+                ))}
+              </div>
+
+              {/* Channel subtotal — shown only when 2+ selected tactics in
+                  this channel can be meaningfully combined (or explain why
+                  they can't via reachError). */}
+              {(group.summary || group.reachError) && (
+                <PlanSummaryPanel
+                  summary={group.summary}
+                  audienceSize={group.tactics[0]?.audienceSize ?? 0}
+                  reachError={group.reachError}
+                  title={`${group.channel} Subtotal`}
+                />
+              )}
+            </section>
+          ))}
+
+          {/* Full program rollup — sums across every channel. */}
           {planSummary && (
-            <div className="space-y-4">
+            <div className="space-y-4 border-t-2 border-unlock-sky pt-6">
               <PlanSummaryPanel
                 summary={planSummary}
-                audienceSize={resolvedTactics[0]?.audienceSize ?? 0}
+                audienceSize={selectedResolved[0]?.audienceSize ?? 0}
                 reachError={planError}
+                title="Full Program Rollup"
               />
               {!planError && (
                 <CombinedReachSteps steps={planSummary.combinedReachSteps} />

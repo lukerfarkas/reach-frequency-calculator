@@ -30,6 +30,13 @@ import {
 } from "./reachCurve";
 
 export interface TacticInputs {
+  /**
+   * Optional form-row id passed through to `ResolvedTactic.id` so the
+   * UI can map resolved results back to the form row (for selection,
+   * removal, etc.). Optional because tests and scripted callers don't
+   * always carry one.
+   */
+  id?: string;
   tacticName: string;
   geoName: string;
   audienceName: string;
@@ -46,6 +53,8 @@ export interface TacticInputs {
 }
 
 export interface ResolvedTactic {
+  /** Form-row id, propagated from TacticInputs.id. */
+  id?: string;
   tacticName: string;
   geoName: string;
   audienceName: string;
@@ -74,6 +83,7 @@ export interface ResolvedTactic {
 
 export function resolveTactic(input: TacticInputs): ResolvedTactic {
   const result: ResolvedTactic = {
+    id: input.id,
     tacticName: input.tacticName,
     geoName: input.geoName,
     audienceName: input.audienceName,

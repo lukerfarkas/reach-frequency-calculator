@@ -125,6 +125,12 @@ export default function ShowMathPanel() {
               <li>Total Gross Impressions = Σ(tactic Gross Impressions)</li>
               <li>Blended CPM = (Total Net Cost / Total Gross Impressions) × 1,000</li>
             </ul>
+            <p className="mt-2 text-xs text-unlock-medium-gray">
+              Channel subtotals apply the same formulas to only the tactics
+              in that channel. Per-channel blended CPM is generally more
+              meaningful than plan-wide blended CPM (since CPMs vary by
+              channel by orders of magnitude).
+            </p>
           </section>
         </div>
       )}

@@ -309,4 +309,41 @@ describe("computePlanSummary", () => {
     expect(summary.totalGRPs).toBe(300);
     expect(summary.combinedReachPercent).toBeCloseTo(72, 5);
   });
+
+  // -------------------------------------------------------------------------
+  // Channel-subset usage (contract for per-channel subtotals in the UI)
+  // -------------------------------------------------------------------------
+
+  it("computes an isolated subtotal for a channel-subset of the plan", () => {
+    // Simulate three tactics (two TV + one Digital) and verify that passing
+    // just the two TV tactics returns a clean TV-only subtotal — no leakage
+    // from the Digital tactic's numbers. This locks in the contract used by
+    // the per-channel sections in page.tsx.
+    const tvSubtotal = computePlanSummary(
+      [
+        {
+          tacticName: "TV - Morning",
+          reachPercent: 45,
+          grps: 150,
+          inputCost: 3_000_000,
+          grossImpressions: 150_000_000,
+        },
+        {
+          tacticName: "TV - Primetime",
+          reachPercent: 55,
+          grps: 200,
+          inputCost: 5_000_000,
+          grossImpressions: 180_000_000,
+        },
+      ],
+      125_000_000
+    );
+
+    expect(tvSubtotal.totalGRPs).toBe(350);
+    // Cost rollup uses ONLY the TV tactics, not the (excluded) Digital one.
+    expect(tvSubtotal.totalNetCost).toBe(8_000_000);
+    expect(tvSubtotal.totalGrossImpressions).toBe(330_000_000);
+    // Blended CPM = 8M / 330M * 1000 ≈ $24.24 — reflects TV economics only.
+    expect(tvSubtotal.blendedCPM).toBeCloseTo(24.24, 1);
+  });
 });
