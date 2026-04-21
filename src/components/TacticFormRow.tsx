@@ -3,6 +3,7 @@
 import { useMemo, useEffect, useRef, useState } from "react";
 import { CHANNELS, type Channel } from "@/lib/schemas";
 import { analyzeRowInputs, type OverallStatus } from "@/lib/inputStatus";
+import { parsePositive, parseNonNeg } from "@/lib/parseNumeric";
 import SearchableSelect from "@/components/SearchableSelect";
 import AgeRangeSelector from "@/components/AgeRangeSelector";
 import {
@@ -192,23 +193,11 @@ function useFlashOnChange(value: string): boolean {
 // Bidirectional Net Cost / Impressions / CPM auto-calculation
 // ---------------------------------------------------------------------------
 
-/** Safely parse a string to a positive finite number, or null. */
-function safePositive(value: string): number | null {
-  const trimmed = value.trim();
-  if (trimmed === "") return null;
-  const n = Number(trimmed);
-  if (!isFinite(n) || n <= 0) return null;
-  return n;
-}
-
-/** Same as safePositive but allows zero. */
-function safeNonNeg(value: string): number | null {
-  const trimmed = value.trim();
-  if (trimmed === "") return null;
-  const n = Number(trimmed);
-  if (!isFinite(n) || n < 0) return null;
-  return n;
-}
+// Local aliases — mirrors the old names used throughout this file so the
+// diff stays small, but the heavy lifting now lives in `@/lib/parseNumeric`
+// which strips currency symbols, commas, and trailing %.
+const safePositive = parsePositive;
+const safeNonNeg = parseNonNeg;
 
 /**
  * Compute the value for a given derived field from its two sources.

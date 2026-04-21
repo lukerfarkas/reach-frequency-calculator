@@ -22,26 +22,19 @@
  *      field is always a function of the sources while marked).
  */
 import { describe, it, expect } from "vitest";
+import { parsePositive, parseNonNeg } from "@/lib/parseNumeric";
 
 // ---------------------------------------------------------------------------
-// Mirror of production helpers (TacticFormRow.tsx)
+// Mirror of production helpers (TacticFormRow.tsx).
+//
+// `safePositive` / `safeNonNeg` are local aliases in the component for
+// `parsePositive` / `parseNonNeg` from `@/lib/parseNumeric` — the real
+// helpers strip currency symbols, thousand separators, and trailing %.
+// We reuse them here so the mirror stays byte-for-byte identical.
 // ---------------------------------------------------------------------------
 
-function safePositive(value: string): number | null {
-  const trimmed = value.trim();
-  if (trimmed === "") return null;
-  const n = Number(trimmed);
-  if (!isFinite(n) || n <= 0) return null;
-  return n;
-}
-
-function safeNonNeg(value: string): number | null {
-  const trimmed = value.trim();
-  if (trimmed === "") return null;
-  const n = Number(trimmed);
-  if (!isFinite(n) || n < 0) return null;
-  return n;
-}
+const safePositive = parsePositive;
+const safeNonNeg = parseNonNeg;
 
 type DerivedCostField = "cost" | "cpm" | "grossImpressions" | null;
 

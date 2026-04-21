@@ -12,6 +12,7 @@
  */
 
 import { getChannelConfig } from "./math/reachCurve";
+import { parseNumeric } from "./parseNumeric";
 
 export type OverallStatus = "insufficient" | "partial" | "ready";
 
@@ -28,20 +29,20 @@ export interface RowInputStatus {
   hasStartedInput: boolean;
 }
 
-/** Check if a string form field holds a valid non-negative number */
+/**
+ * Check if a string form field holds a valid non-negative number.
+ * Uses `parseNumeric` so that pasted values like "$5,000,000" or "45%"
+ * are recognized as present (they strip down to valid numbers).
+ */
 function isPresent(value: string): boolean {
-  const trimmed = value.trim();
-  if (trimmed === "") return false;
-  const n = Number(trimmed);
-  return isFinite(n) && n >= 0;
+  const n = parseNumeric(value);
+  return n != null && n >= 0;
 }
 
-/** CPM specifically must be > 0 */
+/** CPM specifically must be > 0. */
 function isCPMPresent(value: string): boolean {
-  const trimmed = value.trim();
-  if (trimmed === "") return false;
-  const n = Number(trimmed);
-  return isFinite(n) && n > 0;
+  const n = parseNumeric(value);
+  return n != null && n > 0;
 }
 
 export function analyzeRowInputs(form: {

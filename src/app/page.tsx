@@ -13,6 +13,7 @@ import { tacticInputSchema, validateCombinableGroup } from "@/lib/schemas";
 import { resolveTactic, type ResolvedTactic } from "@/lib/math/resolver";
 import { computePlanSummary, type PlanSummaryResult } from "@/lib/math/calculations";
 import { SEED_TACTICS } from "@/lib/seedData";
+import { parseNumeric } from "@/lib/parseNumeric";
 import type { TacticInput } from "@/lib/schemas";
 
 // -------------------------------------------------------------------------
@@ -44,19 +45,23 @@ function tacticFormFromInput(t: TacticInput): TacticFormData {
 }
 
 function parseFormToInput(form: TacticFormData): Record<string, unknown> {
+  // parseNumeric strips currency symbols, thousand separators, and trailing
+  // percent signs — so pasting "$5,000,000" or "45%" from a spreadsheet
+  // doesn't silently become NaN and break downstream validation.
+  const audienceSizeParsed = parseNumeric(form.audienceSize);
   return {
     id: form.id,
     tacticName: form.tacticName.trim(),
     geoName: form.geoName.trim(),
     audienceName: form.audienceName.trim(),
-    audienceSize: form.audienceSize ? Number(form.audienceSize) : undefined,
+    audienceSize: audienceSizeParsed ?? undefined,
     channel: form.channel,
-    grps: form.grps ? Number(form.grps) : null,
-    grossImpressions: form.grossImpressions ? Number(form.grossImpressions) : null,
-    cost: form.cost ? Number(form.cost) : null,
-    cpm: form.cpm ? Number(form.cpm) : null,
-    reachPercent: form.reachPercent ? Number(form.reachPercent) : null,
-    frequency: form.frequency ? Number(form.frequency) : null,
+    grps: parseNumeric(form.grps),
+    grossImpressions: parseNumeric(form.grossImpressions),
+    cost: parseNumeric(form.cost),
+    cpm: parseNumeric(form.cpm),
+    reachPercent: parseNumeric(form.reachPercent),
+    frequency: parseNumeric(form.frequency),
   };
 }
 
