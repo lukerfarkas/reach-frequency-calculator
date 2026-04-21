@@ -39,7 +39,7 @@ function tacticFormFromInput(t: TacticInput): TacticFormData {
     demoAgeMax: 999,
     demoIsHouseholds: false,
     audienceSizeOverridden: false,
-    lastCostField: null,
+    derivedCostField: null,
   };
 }
 
@@ -314,7 +314,7 @@ export default function HomePage() {
               demoAgeMax: typeof t.demoAgeMax === "number" ? t.demoAgeMax : 999,
               demoIsHouseholds: typeof t.demoIsHouseholds === "boolean" ? t.demoIsHouseholds : false,
               audienceSizeOverridden: typeof t.audienceSizeOverridden === "boolean" ? t.audienceSizeOverridden : false,
-              lastCostField: null,
+              derivedCostField: null,
             };
             return form;
           }

@@ -1,16 +1,32 @@
 /**
  * Tests for the bidirectional Net Cost / Impressions / CPM auto-calculation.
  *
- * We import deriveCostTriad from TacticFormRow to test the pure logic
- * without needing React rendering.
+ * The production logic lives in src/components/TacticFormRow.tsx — `deriveCostTriad`
+ * and its helpers are replicated here so the pure formulas + state machine can be
+ * unit-tested without React rendering. The two copies MUST stay in sync.
+ *
+ * Key invariants (documented for anyone touching this logic):
+ *   1. `derivedCostField` marks which of the three fields is currently
+ *      auto-computed from the other two. `null` means no auto-derivation
+ *      is active.
+ *   2. If the user edits the currently-derived field with a valid value,
+ *      the marker clears and no cascade fires — user has taken ownership.
+ *   3. Editing a source field while a derived field is marked re-derives
+ *      ONLY that marked field. It must not overwrite any other field using
+ *      stale values (this was the root cause of the `$21T total` bug).
+ *   4. With no field marked and exactly 2 filled, the third is computed
+ *      and the marker is set.
+ *   5. With no field marked and all 3 filled manually, no cascade fires —
+ *      the user's numbers stand even if they conflict.
+ *   6. Blanking the derived field re-computes it from sources (the derived
+ *      field is always a function of the sources while marked).
  */
 import { describe, it, expect } from "vitest";
 
-// We need to test the deriveCostTriad function. Since it's not exported from
-// TacticFormRow, we'll replicate the core logic here as a unit test of the
-// formulas. The actual component integration is tested via the browser.
+// ---------------------------------------------------------------------------
+// Mirror of production helpers (TacticFormRow.tsx)
+// ---------------------------------------------------------------------------
 
-/** Safe parse helpers matching the component */
 function safePositive(value: string): number | null {
   const trimmed = value.trim();
   if (trimmed === "") return null;
@@ -27,13 +43,35 @@ function safeNonNeg(value: string): number | null {
   return n;
 }
 
-type LastCostField = "cost" | "cpm" | "grossImpressions" | null;
+type DerivedCostField = "cost" | "cpm" | "grossImpressions" | null;
 
-interface TriadResult {
+interface TriadUpdate {
   cost?: string;
   cpm?: string;
   grossImpressions?: string;
-  lastCostField: LastCostField;
+  derivedCostField: DerivedCostField;
+}
+
+function computeDerivedValue(
+  derivedField: "cost" | "cpm" | "grossImpressions",
+  costVal: number | null,
+  cpmVal: number | null,
+  impVal: number | null,
+): string | null {
+  if (derivedField === "cost") {
+    if (cpmVal != null && impVal != null) {
+      return ((cpmVal * impVal) / 1000).toFixed(2);
+    }
+  } else if (derivedField === "cpm") {
+    if (costVal != null && impVal != null && impVal > 0) {
+      return ((costVal / impVal) * 1000).toFixed(2);
+    }
+  } else if (derivedField === "grossImpressions") {
+    if (costVal != null && cpmVal != null && cpmVal > 0) {
+      return String(Math.round((costVal / cpmVal) * 1000));
+    }
+  }
+  return null;
 }
 
 function deriveCostTriad(
@@ -41,202 +79,351 @@ function deriveCostTriad(
   cpm: string,
   impressions: string,
   editedField: "cost" | "cpm" | "grossImpressions",
-  _prevLastField: LastCostField,
-): TriadResult | null {
+  prevDerivedField: DerivedCostField,
+): TriadUpdate {
   const costVal = safeNonNeg(cost);
   const cpmVal = safePositive(cpm);
   const impVal = safeNonNeg(impressions);
 
-  if (editedField === "cost") {
-    if (costVal != null && cpmVal != null) {
-      const derived = (costVal / cpmVal) * 1000;
-      return { grossImpressions: String(Math.round(derived)), lastCostField: "cost" };
-    }
-    if (costVal != null && impVal != null && impVal > 0) {
-      const derived = (costVal / impVal) * 1000;
-      return { cpm: derived.toFixed(2), lastCostField: "cost" };
-    }
-  } else if (editedField === "cpm") {
-    if (cpmVal != null && costVal != null) {
-      const derived = (costVal / cpmVal) * 1000;
-      return { grossImpressions: String(Math.round(derived)), lastCostField: "cpm" };
-    }
-    if (cpmVal != null && impVal != null) {
-      const derived = (cpmVal * impVal) / 1000;
-      return { cost: derived.toFixed(2), lastCostField: "cpm" };
-    }
-  } else if (editedField === "grossImpressions") {
-    if (impVal != null && cpmVal != null) {
-      const derived = (cpmVal * impVal) / 1000;
-      return { cost: derived.toFixed(2), lastCostField: "grossImpressions" };
-    }
-    if (impVal != null && impVal > 0 && costVal != null) {
-      const derived = (costVal / impVal) * 1000;
-      return { cpm: derived.toFixed(2), lastCostField: "grossImpressions" };
-    }
+  const editedVal =
+    editedField === "cost" ? costVal : editedField === "cpm" ? cpmVal : impVal;
+
+  // Rule 1: user typed a valid value into the currently-derived field → override.
+  if (
+    prevDerivedField != null &&
+    editedField === prevDerivedField &&
+    editedVal != null
+  ) {
+    return { derivedCostField: null };
   }
 
-  return { lastCostField: editedField };
+  // Pick the field to (re-)derive.
+  let targetField: "cost" | "cpm" | "grossImpressions" | null = null;
+
+  if (prevDerivedField != null && editedField !== prevDerivedField) {
+    // Source edited while a derived field is active → re-derive same field.
+    targetField = prevDerivedField;
+  } else if (
+    prevDerivedField != null &&
+    editedField === prevDerivedField &&
+    editedVal == null
+  ) {
+    // Rule 6: user blanked/invalidated the derived field → re-derive it.
+    targetField = prevDerivedField;
+  } else {
+    // No field currently marked.
+    const filled =
+      (costVal != null ? 1 : 0) + (cpmVal != null ? 1 : 0) + (impVal != null ? 1 : 0);
+    if (filled === 2) {
+      if (costVal == null) targetField = "cost";
+      else if (cpmVal == null) targetField = "cpm";
+      else targetField = "grossImpressions";
+    }
+    // 0, 1, or 3 filled → no cascade.
+  }
+
+  if (targetField == null) {
+    return { derivedCostField: prevDerivedField ?? null };
+  }
+
+  const derivedValue = computeDerivedValue(targetField, costVal, cpmVal, impVal);
+  if (derivedValue == null) {
+    // Sources not sufficient right now; keep the marker for later retry.
+    return { derivedCostField: prevDerivedField ?? null };
+  }
+
+  if (targetField === "cost") {
+    return { cost: derivedValue, derivedCostField: "cost" };
+  }
+  if (targetField === "cpm") {
+    return { cpm: derivedValue, derivedCostField: "cpm" };
+  }
+  return { grossImpressions: derivedValue, derivedCostField: "grossImpressions" };
 }
 
 // ---------------------------------------------------------------------------
-// Net Cost + Impressions → CPM
+// Section 1: initial derivation (exactly 2 filled, no prior marker)
 // ---------------------------------------------------------------------------
 
-describe("deriveCostTriad", () => {
-  describe("Net Cost + Impressions → CPM", () => {
-    it("$5,000,000 cost + 200,000,000 impressions → $25.00 CPM", () => {
-      const result = deriveCostTriad("5000000", "", "200000000", "cost", null);
-      expect(result).not.toBeNull();
-      expect(result!.cpm).toBe("25.00");
-      expect(result!.lastCostField).toBe("cost");
-    });
-
-    it("$100 cost + 10,000 impressions → $10.00 CPM", () => {
-      const result = deriveCostTriad("100", "", "10000", "cost", null);
-      expect(result!.cpm).toBe("10.00");
-    });
-
-    it("editing impressions with existing cost → derives CPM", () => {
-      const result = deriveCostTriad("5000000", "", "200000000", "grossImpressions", null);
-      expect(result!.cpm).toBe("25.00");
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // CPM + Impressions → Net Cost
-  // ---------------------------------------------------------------------------
-
-  describe("CPM + Impressions → Net Cost", () => {
-    it("$25 CPM + 200,000,000 impressions → $5,000,000 cost", () => {
-      const result = deriveCostTriad("", "25", "200000000", "cpm", null);
-      expect(result!.cost).toBe("5000000.00");
-      expect(result!.lastCostField).toBe("cpm");
-    });
-
-    it("$10 CPM + 10,000 impressions → $100 cost", () => {
-      const result = deriveCostTriad("", "10", "10000", "cpm", null);
-      expect(result!.cost).toBe("100.00");
-    });
-
-    it("editing impressions with existing CPM → derives cost", () => {
-      const result = deriveCostTriad("", "25", "200000000", "grossImpressions", null);
-      expect(result!.cost).toBe("5000000.00");
-    });
-  });
-
-  // ---------------------------------------------------------------------------
-  // Net Cost + CPM → Impressions
-  // ---------------------------------------------------------------------------
-
+describe("deriveCostTriad — initial derivation", () => {
   describe("Net Cost + CPM → Impressions", () => {
-    it("$5,000,000 cost + $25 CPM → 200,000,000 impressions", () => {
-      const result = deriveCostTriad("5000000", "25", "", "cost", null);
-      expect(result!.grossImpressions).toBe("200000000");
-      expect(result!.lastCostField).toBe("cost");
+    it("$5M cost + $25 CPM → 200M impressions", () => {
+      const r = deriveCostTriad("5000000", "25", "", "cost", null);
+      expect(r.grossImpressions).toBe("200000000");
+      expect(r.derivedCostField).toBe("grossImpressions");
     });
 
     it("editing CPM with existing cost → derives impressions", () => {
-      const result = deriveCostTriad("5000000", "25", "", "cpm", null);
-      expect(result!.grossImpressions).toBe("200000000");
-      expect(result!.lastCostField).toBe("cpm");
+      const r = deriveCostTriad("5000000", "25", "", "cpm", null);
+      expect(r.grossImpressions).toBe("200000000");
+      expect(r.derivedCostField).toBe("grossImpressions");
     });
 
     it("$100 cost + $10 CPM → 10,000 impressions", () => {
-      const result = deriveCostTriad("100", "10", "", "cost", null);
-      expect(result!.grossImpressions).toBe("10000");
+      const r = deriveCostTriad("100", "10", "", "cost", null);
+      expect(r.grossImpressions).toBe("10000");
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // Invalid / blank input handling
-  // ---------------------------------------------------------------------------
-
-  describe("invalid and blank inputs", () => {
-    it("blank cost + blank CPM → just tracks last field", () => {
-      const result = deriveCostTriad("", "", "", "cost", null);
-      expect(result).toEqual({ lastCostField: "cost" });
+  describe("Net Cost + Impressions → CPM", () => {
+    it("$5M cost + 200M impressions → $25.00 CPM", () => {
+      const r = deriveCostTriad("5000000", "", "200000000", "cost", null);
+      expect(r.cpm).toBe("25.00");
+      expect(r.derivedCostField).toBe("cpm");
     });
 
-    it("non-numeric cost → just tracks last field", () => {
-      const result = deriveCostTriad("abc", "25", "", "cost", null);
-      expect(result).toEqual({ lastCostField: "cost" });
+    it("editing impressions with existing cost → derives CPM", () => {
+      const r = deriveCostTriad("5000000", "", "200000000", "grossImpressions", null);
+      expect(r.cpm).toBe("25.00");
+      expect(r.derivedCostField).toBe("cpm");
     });
 
-    it("negative CPM → just tracks last field", () => {
-      const result = deriveCostTriad("5000000", "-10", "", "cost", null);
-      expect(result).toEqual({ lastCostField: "cost" });
-    });
-
-    it("zero CPM → just tracks last field (CPM must be > 0)", () => {
-      const result = deriveCostTriad("5000000", "0", "", "cost", null);
-      expect(result).toEqual({ lastCostField: "cost" });
-    });
-
-    it("zero impressions → does not derive CPM (avoid division by zero)", () => {
-      const result = deriveCostTriad("5000000", "", "0", "cost", null);
-      // impVal is 0, safeNonNeg returns 0, but we check impVal > 0
-      expect(result).toEqual({ lastCostField: "cost" });
-    });
-
-    it("Infinity string → just tracks last field", () => {
-      const result = deriveCostTriad("Infinity", "25", "", "cost", null);
-      expect(result).toEqual({ lastCostField: "cost" });
-    });
-
-    it("NaN string → just tracks last field", () => {
-      const result = deriveCostTriad("NaN", "25", "", "cost", null);
-      expect(result).toEqual({ lastCostField: "cost" });
+    it("$100 cost + 10,000 impressions → $10.00 CPM", () => {
+      const r = deriveCostTriad("100", "", "10000", "cost", null);
+      expect(r.cpm).toBe("10.00");
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // Last-edited-field precedence
-  // ---------------------------------------------------------------------------
-
-  describe("last-edited-field precedence", () => {
-    it("editing cost with both CPM and impressions present → derives impressions (CPM is other known)", () => {
-      // When all three are present and user edits cost, derive impressions
-      // because cost+CPM → impressions
-      const result = deriveCostTriad("5000000", "25", "100000000", "cost", "grossImpressions");
-      expect(result!.grossImpressions).toBe("200000000");
-      expect(result!.lastCostField).toBe("cost");
+  describe("CPM + Impressions → Net Cost", () => {
+    it("$25 CPM + 200M impressions → $5,000,000 cost", () => {
+      const r = deriveCostTriad("", "25", "200000000", "cpm", null);
+      expect(r.cost).toBe("5000000.00");
+      expect(r.derivedCostField).toBe("cost");
     });
 
-    it("editing CPM with both cost and impressions present → derives impressions (cost is other known)", () => {
-      const result = deriveCostTriad("5000000", "25", "100000000", "cpm", "cost");
-      expect(result!.grossImpressions).toBe("200000000");
-      expect(result!.lastCostField).toBe("cpm");
-    });
-
-    it("editing impressions with both cost and CPM present → derives cost (CPM is other known)", () => {
-      const result = deriveCostTriad("1000000", "25", "200000000", "grossImpressions", "cost");
-      expect(result!.cost).toBe("5000000.00");
-      expect(result!.lastCostField).toBe("grossImpressions");
+    it("editing impressions with existing CPM → derives cost", () => {
+      const r = deriveCostTriad("", "25", "200000000", "grossImpressions", null);
+      expect(r.cost).toBe("5000000.00");
+      expect(r.derivedCostField).toBe("cost");
     });
   });
+});
 
-  // ---------------------------------------------------------------------------
-  // Formatting
-  // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Section 2: source re-derivation (prior marker persists; only the marked
+// field is recomputed — no other field is touched)
+// ---------------------------------------------------------------------------
 
-  describe("formatting", () => {
-    it("CPM is formatted to 2 decimal places", () => {
-      // $333 cost / 100,000 impressions = $3.33 CPM
-      const result = deriveCostTriad("333", "", "100000", "cost", null);
-      expect(result!.cpm).toBe("3.33");
-    });
+describe("deriveCostTriad — source re-derivation", () => {
+  it("impressions is derived; editing cost re-derives impressions only", () => {
+    const r = deriveCostTriad("2000000", "25", "40000000", "cost", "grossImpressions");
+    expect(r.grossImpressions).toBe("80000000");
+    expect(r.cost).toBeUndefined();
+    expect(r.cpm).toBeUndefined();
+    expect(r.derivedCostField).toBe("grossImpressions");
+  });
 
-    it("Net Cost is formatted to 2 decimal places", () => {
-      const result = deriveCostTriad("", "3.33", "100000", "cpm", null);
-      expect(result!.cost).toBe("333.00");
-    });
+  it("impressions is derived; editing cpm re-derives impressions only", () => {
+    const r = deriveCostTriad("1000000", "50", "40000000", "cpm", "grossImpressions");
+    expect(r.grossImpressions).toBe("20000000");
+    expect(r.cost).toBeUndefined();
+    expect(r.cpm).toBeUndefined();
+    expect(r.derivedCostField).toBe("grossImpressions");
+  });
 
-    it("Impressions are formatted as whole numbers", () => {
-      // $5,000,000 / $25 CPM * 1000 = 200,000,000
-      const result = deriveCostTriad("5000000", "25", "", "cost", null);
-      expect(result!.grossImpressions).toBe("200000000");
-      expect(result!.grossImpressions).not.toContain(".");
-    });
+  it("cost is derived; editing cpm re-derives cost only (does NOT overwrite impressions)", () => {
+    // Regression for the $21T bug: prior logic would derive impressions here using
+    // stale inputs, corrupting a user-entered field.
+    const r = deriveCostTriad("1000000", "25", "200000000", "cpm", "cost");
+    expect(r.cost).toBe("5000000.00");
+    expect(r.grossImpressions).toBeUndefined();
+    expect(r.cpm).toBeUndefined();
+    expect(r.derivedCostField).toBe("cost");
+  });
+
+  it("cost is derived; editing impressions re-derives cost only", () => {
+    const r = deriveCostTriad("1000000", "25", "200000000", "grossImpressions", "cost");
+    expect(r.cost).toBe("5000000.00");
+    expect(r.cpm).toBeUndefined();
+    expect(r.grossImpressions).toBeUndefined();
+    expect(r.derivedCostField).toBe("cost");
+  });
+
+  it("cpm is derived; editing cost re-derives cpm only", () => {
+    const r = deriveCostTriad("5000000", "25", "200000000", "cost", "cpm");
+    expect(r.cpm).toBe("25.00");
+    expect(r.cost).toBeUndefined();
+    expect(r.grossImpressions).toBeUndefined();
+    expect(r.derivedCostField).toBe("cpm");
+  });
+
+  it("cpm is derived; editing impressions re-derives cpm only", () => {
+    const r = deriveCostTriad("5000000", "25", "200000000", "grossImpressions", "cpm");
+    expect(r.cpm).toBe("25.00");
+    expect(r.cost).toBeUndefined();
+    expect(r.grossImpressions).toBeUndefined();
+    expect(r.derivedCostField).toBe("cpm");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Section 3: user override — editing the derived field clears the marker
+// ---------------------------------------------------------------------------
+
+describe("deriveCostTriad — user override of derived field", () => {
+  it("typing into the currently-derived impressions field clears the marker", () => {
+    const r = deriveCostTriad("1000000", "25", "50000000", "grossImpressions", "grossImpressions");
+    expect(r.derivedCostField).toBeNull();
+    expect(r.cost).toBeUndefined();
+    expect(r.cpm).toBeUndefined();
+    expect(r.grossImpressions).toBeUndefined();
+  });
+
+  it("typing into the currently-derived cost field clears the marker", () => {
+    const r = deriveCostTriad("6000000", "25", "200000000", "cost", "cost");
+    expect(r.derivedCostField).toBeNull();
+    expect(r.cost).toBeUndefined();
+  });
+
+  it("typing into the currently-derived cpm field clears the marker", () => {
+    const r = deriveCostTriad("5000000", "30", "200000000", "cpm", "cpm");
+    expect(r.derivedCostField).toBeNull();
+    expect(r.cpm).toBeUndefined();
+  });
+
+  it("after override, editing a source does NOT cascade (user now owns all 3)", () => {
+    // State after an override: derivedCostField=null, all 3 filled with user values.
+    // Editing any field must not re-derive anything.
+    const r = deriveCostTriad("2000000", "25", "99000000", "cost", null);
+    expect(r.derivedCostField).toBeNull();
+    expect(r.cost).toBeUndefined();
+    expect(r.cpm).toBeUndefined();
+    expect(r.grossImpressions).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Section 4: clearing the derived field restores it from sources
+// ---------------------------------------------------------------------------
+
+describe("deriveCostTriad — clearing the derived field re-computes", () => {
+  it("blanking a derived impressions field → snaps back to computed value", () => {
+    const r = deriveCostTriad("1000000", "25", "", "grossImpressions", "grossImpressions");
+    expect(r.grossImpressions).toBe("40000000");
+    expect(r.derivedCostField).toBe("grossImpressions");
+  });
+
+  it("blanking a derived cost field → snaps back to computed value", () => {
+    const r = deriveCostTriad("", "25", "200000000", "cost", "cost");
+    expect(r.cost).toBe("5000000.00");
+    expect(r.derivedCostField).toBe("cost");
+  });
+
+  it("blanking a derived cpm field → snaps back to computed value", () => {
+    const r = deriveCostTriad("5000000", "", "200000000", "cpm", "cpm");
+    expect(r.cpm).toBe("25.00");
+    expect(r.derivedCostField).toBe("cpm");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Section 5: $21T cascade regression — all 3 manually filled must not cascade
+// ---------------------------------------------------------------------------
+
+describe("deriveCostTriad — no cascade when all 3 user-filled (no marker)", () => {
+  it("editing cost does not overwrite cpm or impressions", () => {
+    // Prior to the fix, editing any field in this state would cascade using
+    // stale values and overwrite an unrelated field, producing garbage totals
+    // (e.g. $21T on a $1.8M plan).
+    const r = deriveCostTriad("1800000", "25", "40000000", "cost", null);
+    expect(r.derivedCostField).toBeNull();
+    expect(r.cost).toBeUndefined();
+    expect(r.cpm).toBeUndefined();
+    expect(r.grossImpressions).toBeUndefined();
+  });
+
+  it("editing cpm does not cascade", () => {
+    const r = deriveCostTriad("5000000", "30", "200000000", "cpm", null);
+    expect(r.derivedCostField).toBeNull();
+    expect(r.cost).toBeUndefined();
+    expect(r.grossImpressions).toBeUndefined();
+  });
+
+  it("editing impressions does not cascade", () => {
+    const r = deriveCostTriad("5000000", "25", "300000000", "grossImpressions", null);
+    expect(r.derivedCostField).toBeNull();
+    expect(r.cost).toBeUndefined();
+    expect(r.cpm).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Section 6: insufficient or invalid inputs
+// ---------------------------------------------------------------------------
+
+describe("deriveCostTriad — insufficient / invalid inputs", () => {
+  it("only 1 field filled + no prior marker → no cascade", () => {
+    const r = deriveCostTriad("1000000", "", "", "cost", null);
+    expect(r.derivedCostField).toBeNull();
+    expect(r.cost).toBeUndefined();
+    expect(r.cpm).toBeUndefined();
+    expect(r.grossImpressions).toBeUndefined();
+  });
+
+  it("no fields filled → no cascade", () => {
+    const r = deriveCostTriad("", "", "", "cost", null);
+    expect(r.derivedCostField).toBeNull();
+  });
+
+  it("non-numeric cost treated as empty → no cascade with only cpm set", () => {
+    const r = deriveCostTriad("abc", "25", "", "cost", null);
+    expect(r.derivedCostField).toBeNull();
+  });
+
+  it("negative CPM treated as empty", () => {
+    const r = deriveCostTriad("5000000", "-10", "", "cost", null);
+    expect(r.derivedCostField).toBeNull();
+  });
+
+  it("zero CPM treated as invalid (CPM must be > 0)", () => {
+    const r = deriveCostTriad("5000000", "0", "", "cost", null);
+    expect(r.derivedCostField).toBeNull();
+  });
+
+  it("zero impressions does not produce CPM division by zero", () => {
+    const r = deriveCostTriad("5000000", "", "0", "cost", null);
+    expect(r.cpm).toBeUndefined();
+    expect(r.derivedCostField).toBeNull();
+  });
+
+  it("Infinity string treated as invalid", () => {
+    const r = deriveCostTriad("Infinity", "25", "", "cost", null);
+    expect(r.derivedCostField).toBeNull();
+  });
+
+  it("NaN string treated as invalid", () => {
+    const r = deriveCostTriad("NaN", "25", "", "cost", null);
+    expect(r.derivedCostField).toBeNull();
+  });
+
+  it("prior marker persists when a source becomes invalid (can recover later)", () => {
+    // derivedField=grossImpressions; user clears cpm → cannot re-derive, but
+    // marker stays so that when cpm returns, re-derivation resumes.
+    const r = deriveCostTriad("1000000", "", "40000000", "cpm", "grossImpressions");
+    expect(r.grossImpressions).toBeUndefined();
+    expect(r.derivedCostField).toBe("grossImpressions");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Section 7: formatting
+// ---------------------------------------------------------------------------
+
+describe("deriveCostTriad — formatting", () => {
+  it("CPM is formatted to 2 decimal places", () => {
+    // $333 cost / 100,000 impressions × 1000 = $3.33 CPM
+    const r = deriveCostTriad("333", "", "100000", "cost", null);
+    expect(r.cpm).toBe("3.33");
+  });
+
+  it("Net Cost is formatted to 2 decimal places", () => {
+    const r = deriveCostTriad("", "3.33", "100000", "cpm", null);
+    expect(r.cost).toBe("333.00");
+  });
+
+  it("Impressions are formatted as whole numbers", () => {
+    const r = deriveCostTriad("5000000", "25", "", "cost", null);
+    expect(r.grossImpressions).toBe("200000000");
+    expect(r.grossImpressions).not.toContain(".");
   });
 });
